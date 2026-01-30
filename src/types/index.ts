@@ -3,8 +3,10 @@ export type PieceType = 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn'
 
 export type PlayerColor = 'white' | 'black';
 
+export type GameStatus = 'playing' | 'check' | 'checkmate' | 'stalemate';
+
 export interface Position {
-  x: number; // 0-11 for 12x12 battle royale grid
+  x: number; // 0-7 for standard 8x8 board
   y: number;
 }
 
@@ -14,16 +16,20 @@ export interface ChessPiece {
   color: PlayerColor;
   position: Position;
   isRevealed: boolean; // For fog of war mechanic
-}
-
-export interface GameState {
-  pieces: ChessPiece[];
-  currentTurn: PlayerColor;
-  turnNumber: number;
+  hasMoved: boolean;
 }
 
 export interface Move {
   pieceId: string;
   from: Position;
   to: Position;
+  capturedPieceId?: string;
+}
+
+export interface GameState {
+  pieces: ChessPiece[];
+  currentTurn: PlayerColor;
+  turnNumber: number;
+  lastMove: Move | null;
+  gameStatus: GameStatus;
 }
