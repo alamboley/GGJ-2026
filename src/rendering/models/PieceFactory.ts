@@ -66,6 +66,10 @@ export class PieceFactory {
           side: THREE.DoubleSide,
         });
 
+        // Enable shadows
+        child.castShadow = true;
+        child.receiveShadow = true;
+
         // Ensure geometry has computed normals
         if (child.geometry) {
           child.geometry.computeVertexNormals();
@@ -107,6 +111,8 @@ export class PieceFactory {
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.y = 0.3;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     return mesh;
   }
 }

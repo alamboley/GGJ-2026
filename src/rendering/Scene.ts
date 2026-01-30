@@ -17,7 +17,8 @@ export class Scene {
 
     // Create scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x1a1a2e);
+    this.scene.background = new THREE.Color(0x3a3020);
+    this.scene.fog = new THREE.FogExp2(0x3a3020, 0.025); // Warm battlefield haze
 
     // Create camera
     const aspect = container.clientWidth / container.clientHeight;
@@ -31,6 +32,8 @@ export class Scene {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
     // Set up orbit controls
@@ -40,6 +43,12 @@ export class Scene {
     this.controls.minDistance = 8;
     this.controls.maxDistance = 45;
     this.controls.maxPolarAngle = Math.PI / 2.1;
+
+    // Create sky dome (background)
+    this.createSkyDome();
+
+    // Create ground plane
+    this.createGround();
 
     // Add lighting
     this.setupLighting();
@@ -56,24 +65,76 @@ export class Scene {
     window.addEventListener('resize', () => this.onWindowResize(container));
   }
 
+  private createSkyDome(): void {
+    const skyGeometry = new THREE.SphereGeometry(80, 32, 32);
+    const skyMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        topColor: { value: new THREE.Color(0x2a1a4a) },    // Deep purple
+        bottomColor: { value: new THREE.Color(0xd4a574) }, // Sunset amber
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 bottomColor;
+        varying vec3 vWorldPosition;
+        void main() {
+          float h = normalize(vWorldPosition).y;
+          float t = max(0.0, h);
+          gl_FragColor = vec4(mix(bottomColor, topColor, t), 1.0);
+        }
+      `,
+      side: THREE.BackSide,
+    });
+    this.scene.add(new THREE.Mesh(skyGeometry, skyMaterial));
+  }
+
+  private createGround(): void {
+    const groundGeometry = new THREE.PlaneGeometry(60, 60);
+    const groundMaterial = new THREE.MeshStandardMaterial({
+      color: 0x3d4a2d, // Dark grass/mud
+      roughness: 0.9,
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.05;
+    ground.receiveShadow = true;
+    this.scene.add(ground);
+  }
+
   private setupLighting(): void {
     // Hemisphere light for natural sky/ground ambient
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    const hemiLight = new THREE.HemisphereLight(0xd4a574, 0x3d4a2d, 0.4);
     hemiLight.position.set(0, 20, 0);
     this.scene.add(hemiLight);
 
-    // Main directional light (sun)
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    // Main directional light (sun) - warm amber for sunset
+    const directionalLight = new THREE.DirectionalLight(0xffd4a0, 1.2);
     directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 50;
+    directionalLight.shadow.camera.left = -15;
+    directionalLight.shadow.camera.right = 15;
+    directionalLight.shadow.camera.top = 15;
+    directionalLight.shadow.camera.bottom = -15;
     this.scene.add(directionalLight);
 
-    // Fill light from opposite side
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    // Fill light from opposite side - cooler tone
+    const fillLight = new THREE.DirectionalLight(0x8888cc, 0.4);
     fillLight.position.set(-10, 15, -10);
     this.scene.add(fillLight);
 
-    // Front fill light to show face details
-    const frontLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    // Front fill light to show face details - warm
+    const frontLight = new THREE.DirectionalLight(0xffd4a0, 0.3);
     frontLight.position.set(0, 10, 15);
     this.scene.add(frontLight);
   }
@@ -116,6 +177,7 @@ export class Scene {
         const geometry = new THREE.BoxGeometry(tileSize, 0.1, tileSize);
         const material = new THREE.MeshStandardMaterial({ color });
         const tile = new THREE.Mesh(geometry, material);
+        tile.receiveShadow = true;
 
         tile.position.set(
           x * tileSize - halfBoard + tileSize / 2,
