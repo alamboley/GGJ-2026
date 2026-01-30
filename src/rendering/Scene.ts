@@ -22,7 +22,7 @@ export class Scene {
     // Create camera
     const aspect = container.clientWidth / container.clientHeight;
     this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
-    this.camera.position.set(0, 10, 10);
+    this.camera.position.set(0, 15, 15);
     this.camera.lookAt(0, 0, 0);
 
     // Create renderer
@@ -35,8 +35,8 @@ export class Scene {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.minDistance = 5;
-    this.controls.maxDistance = 30;
+    this.controls.minDistance = 8;
+    this.controls.maxDistance = 45;
     this.controls.maxPolarAngle = Math.PI / 2.1;
 
     // Add lighting

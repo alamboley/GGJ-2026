@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { AIPlayer } from './AIPlayer';
 import { Game } from '../game/Game';
-import type { Move } from '../types';
 
 describe('AIPlayer', () => {
   let game: Game;
@@ -25,13 +24,13 @@ describe('AIPlayer', () => {
 
   describe('makeMove', () => {
     beforeEach(() => {
-      game.setupInitialPosition();
-      // Make a white move first so it's black's turn
+      game.setupClassicPosition();
+      // Make a white move first so it's black's turn (1 square pawn move in battlefield chess)
       const whitePawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
       game.executeMove({
         pieceId: whitePawn!.id,
         from: { x: 4, y: 6 },
-        to: { x: 4, y: 4 },
+        to: { x: 4, y: 5 },
       });
     });
 
@@ -115,7 +114,6 @@ describe('AIPlayer', () => {
       });
 
       // Make it black's turn
-      const whiteAI = new AIPlayer('white', 0);
       // Actually we need it to be black's turn - game starts with white
       // Let's create a fresh game and manually set pieces
 
@@ -234,8 +232,6 @@ describe('AIPlayer', () => {
       });
 
       // Knight can move to f3 (5,5) which is near center, or a3 (0,5) which is edge
-      const testAI = new AIPlayer('white', 0);
-
       let centerMoves = 0;
       for (let i = 0; i < 10; i++) {
         const g = new Game();
@@ -325,16 +321,11 @@ describe('AIPlayer', () => {
     });
 
     it('prefers developing unmoved minor pieces', async () => {
-      const g = new Game();
-      g.setupInitialPosition();
-
-      const whiteAI = new AIPlayer('white', 0);
-
       // Run multiple times to see if knight/bishop development is favored
       let developmentMoves = 0;
       for (let i = 0; i < 10; i++) {
         const testGame = new Game();
-        testGame.setupInitialPosition();
+        testGame.setupClassicPosition();
 
         const move = await new AIPlayer('white', 0).makeMove(testGame);
 

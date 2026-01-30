@@ -4,45 +4,45 @@ import { AIPlayer } from '../../src/ai/AIPlayer';
 import type { Move, GameStatus, PlayerColor } from '../../src/types';
 
 describe('GameFlow Integration', () => {
-  describe('Full game setup and basic moves', () => {
+  describe('Full game setup and basic moves (classic position)', () => {
     let game: Game;
 
     beforeEach(() => {
       game = new Game();
-      game.setupInitialPosition();
+      game.setupClassicPosition();
     });
 
-    it('plays e4 e5 opening', () => {
-      // 1. e4
+    it('plays basic pawn and knight moves', () => {
+      // Battlefield chess: 1 square pawn moves
       const whitePawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
-      const e4 = game.executeMove({
+      const e3 = game.executeMove({
         pieceId: whitePawn!.id,
         from: { x: 4, y: 6 },
-        to: { x: 4, y: 4 },
+        to: { x: 4, y: 5 },
       });
-      expect(e4).toBe(true);
+      expect(e3).toBe(true);
       expect(game.getCurrentTurn()).toBe('black');
 
-      // 1...e5
+      // Black responds
       const blackPawn = game.getBoard().getPieceAt({ x: 4, y: 1 });
-      const e5 = game.executeMove({
+      const e6 = game.executeMove({
         pieceId: blackPawn!.id,
         from: { x: 4, y: 1 },
-        to: { x: 4, y: 3 },
+        to: { x: 4, y: 2 },
       });
-      expect(e5).toBe(true);
+      expect(e6).toBe(true);
       expect(game.getCurrentTurn()).toBe('white');
       expect(game.getTurnNumber()).toBe(2);
     });
 
-    it('plays Italian Game opening', () => {
-      // 1. e4 e5 2. Nf3 Nc6 3. Bc4
+    it('plays knight development opening', () => {
+      // Knight moves work the same in battlefield chess
       const moves = [
-        { from: { x: 4, y: 6 }, to: { x: 4, y: 4 } }, // e4
-        { from: { x: 4, y: 1 }, to: { x: 4, y: 3 } }, // e5
         { from: { x: 6, y: 7 }, to: { x: 5, y: 5 } }, // Nf3
         { from: { x: 1, y: 0 }, to: { x: 2, y: 2 } }, // Nc6
-        { from: { x: 5, y: 7 }, to: { x: 2, y: 4 } }, // Bc4
+        { from: { x: 1, y: 7 }, to: { x: 2, y: 5 } }, // Nc3
+        { from: { x: 6, y: 0 }, to: { x: 5, y: 2 } }, // Nf6
+        { from: { x: 4, y: 6 }, to: { x: 4, y: 5 } }, // e3 (1 square)
       ];
 
       for (const move of moves) {
@@ -62,11 +62,13 @@ describe('GameFlow Integration', () => {
     });
 
     it('handles piece captures correctly', () => {
-      // Play to a position where captures happen
-      // 1. e4 d5 2. exd5
+      // Use knight capture scenario for battlefield chess
+      // 1. Nc3 d6 2. Ne4 Nc6 3. Nxd6 (knight captures pawn)
       const moves = [
-        { from: { x: 4, y: 6 }, to: { x: 4, y: 4 } }, // e4
-        { from: { x: 3, y: 1 }, to: { x: 3, y: 3 } }, // d5
+        { from: { x: 1, y: 7 }, to: { x: 2, y: 5 } }, // Nc3
+        { from: { x: 3, y: 1 }, to: { x: 3, y: 2 } }, // d6
+        { from: { x: 2, y: 5 }, to: { x: 4, y: 4 } }, // Ne4
+        { from: { x: 1, y: 0 }, to: { x: 2, y: 2 } }, // Nc6
       ];
 
       for (const move of moves) {
@@ -78,19 +80,19 @@ describe('GameFlow Integration', () => {
         });
       }
 
-      // exd5 - capture
-      const whitePawn = game.getBoard().getPieceAt({ x: 4, y: 4 });
-      const blackPawn = game.getBoard().getPieceAt({ x: 3, y: 3 });
+      // Knight captures pawn
+      const whiteKnight = game.getBoard().getPieceAt({ x: 4, y: 4 });
+      const blackPawn = game.getBoard().getPieceAt({ x: 3, y: 2 });
       expect(blackPawn).toBeDefined();
 
       const capture = game.executeMove({
-        pieceId: whitePawn!.id,
+        pieceId: whiteKnight!.id,
         from: { x: 4, y: 4 },
-        to: { x: 3, y: 3 },
+        to: { x: 3, y: 2 },
       });
 
       expect(capture).toBe(true);
-      expect(game.getBoard().getPieceAt({ x: 3, y: 3 })?.color).toBe('white');
+      expect(game.getBoard().getPieceAt({ x: 3, y: 2 })?.type).toBe('knight');
       expect(game.getBoard().getPiece(blackPawn!.id)).toBeUndefined();
 
       // Count pieces
@@ -209,38 +211,15 @@ describe('GameFlow Integration', () => {
       const game = new Game();
       const board = game.getBoard();
 
-      // Classic back rank mate setup
+      // Simple ladder mate: King trapped with two rooks
+      // Black king at a1 (0,0), white rooks will deliver checkmate
       board.addPiece({
         id: 'black-king',
         type: 'king',
         color: 'black',
-        position: { x: 6, y: 0 },
+        position: { x: 0, y: 0 },
         isRevealed: true,
         hasMoved: true,
-      });
-      board.addPiece({
-        id: 'black-pawn-f',
-        type: 'pawn',
-        color: 'black',
-        position: { x: 5, y: 1 },
-        isRevealed: true,
-        hasMoved: false,
-      });
-      board.addPiece({
-        id: 'black-pawn-g',
-        type: 'pawn',
-        color: 'black',
-        position: { x: 6, y: 1 },
-        isRevealed: true,
-        hasMoved: false,
-      });
-      board.addPiece({
-        id: 'black-pawn-h',
-        type: 'pawn',
-        color: 'black',
-        position: { x: 7, y: 1 },
-        isRevealed: true,
-        hasMoved: false,
       });
       board.addPiece({
         id: 'white-king',
@@ -251,54 +230,84 @@ describe('GameFlow Integration', () => {
         hasMoved: true,
       });
       board.addPiece({
-        id: 'white-rook',
+        id: 'white-rook-1',
         type: 'rook',
         color: 'white',
-        position: { x: 0, y: 2 },
+        position: { x: 0, y: 2 }, // Will move to a2 to give check
+        isRevealed: true,
+        hasMoved: true,
+      });
+      board.addPiece({
+        id: 'white-rook-2',
+        type: 'rook',
+        color: 'white',
+        position: { x: 1, y: 1 }, // b2 - covering b1, will defend Ra2
         isRevealed: true,
         hasMoved: true,
       });
 
-      // Deliver back rank mate
+      // White delivers mate by moving rook to a2
       game.executeMove({
-        pieceId: 'white-rook',
+        pieceId: 'white-rook-1',
         from: { x: 0, y: 2 },
-        to: { x: 0, y: 0 },
+        to: { x: 0, y: 1 }, // Ra2 - gives check, defended by Rb2
       });
 
-      // Now it's black's turn and black is in checkmate
+      // Black king at a1(0,0) is in check from Ra2(0,1)
+      // Escape squares: b1(1,0), a2(0,1), b2(1,1)
+      // - b1(1,0) is attacked by Rb2(1,1)
+      // - a2(0,1) has the checking rook (defended by Rb2(1,1))
+      // - b2(1,1) has the other rook (defended by Ra2(0,1))
+      // This is checkmate!
       expect(game.getGameStatus()).toBe('checkmate');
       expect(game.isGameOver()).toBe(true);
     });
 
-    it('detects scholars mate', () => {
+    it('detects checkmate via queen and bishop', () => {
       const game = new Game();
-      game.setupInitialPosition();
+      const board = game.getBoard();
 
-      // Play scholars mate: 1.e4 e5 2.Bc4 Nc6 3.Qh5 Nf6?? 4.Qxf7#
-      const scholarsMateMoves = [
-        { from: { x: 4, y: 6 }, to: { x: 4, y: 4 } }, // e4
-        { from: { x: 4, y: 1 }, to: { x: 4, y: 3 } }, // e5
-        { from: { x: 5, y: 7 }, to: { x: 2, y: 4 } }, // Bc4
-        { from: { x: 1, y: 0 }, to: { x: 2, y: 2 } }, // Nc6
-        { from: { x: 3, y: 7 }, to: { x: 7, y: 3 } }, // Qh5
-        { from: { x: 6, y: 0 }, to: { x: 5, y: 2 } }, // Nf6??
-        { from: { x: 7, y: 3 }, to: { x: 5, y: 1 } }, // Qxf7#
-      ];
+      // Set up a simple checkmate position
+      // Black king cornered, white queen and bishop delivering mate
+      board.addPiece({
+        id: 'black-king',
+        type: 'king',
+        color: 'black',
+        position: { x: 7, y: 0 }, // h8
+        isRevealed: true,
+        hasMoved: true,
+      });
+      board.addPiece({
+        id: 'white-king',
+        type: 'king',
+        color: 'white',
+        position: { x: 5, y: 7 },
+        isRevealed: true,
+        hasMoved: true,
+      });
+      board.addPiece({
+        id: 'white-queen',
+        type: 'queen',
+        color: 'white',
+        position: { x: 6, y: 1 }, // g7 - delivers check
+        isRevealed: true,
+        hasMoved: true,
+      });
+      board.addPiece({
+        id: 'white-bishop',
+        type: 'bishop',
+        color: 'white',
+        position: { x: 4, y: 4 }, // e4 - covers escape via diagonal
+        isRevealed: true,
+        hasMoved: true,
+      });
 
-      for (const move of scholarsMateMoves) {
-        const piece = game.getBoard().getPieceAt(move.from);
-        if (!piece) {
-          console.log(`No piece at ${move.from.x},${move.from.y}`);
-          continue;
-        }
-        const result = game.executeMove({
-          pieceId: piece.id,
-          from: move.from,
-          to: move.to,
-        });
-        expect(result).toBe(true);
-      }
+      // White queen moves to deliver mate
+      game.executeMove({
+        pieceId: 'white-queen',
+        from: { x: 6, y: 1 },
+        to: { x: 7, y: 1 }, // Qh7#
+      });
 
       expect(game.getGameStatus()).toBe('checkmate');
     });
@@ -358,14 +367,14 @@ describe('GameFlow Integration', () => {
   describe('AI gameplay', () => {
     it('AI can play a complete turn', async () => {
       const game = new Game();
-      game.setupInitialPosition();
+      game.setupClassicPosition();
 
-      // White makes opening move
+      // White makes opening move (1 square in battlefield chess)
       const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
       game.executeMove({
         pieceId: pawn!.id,
         from: { x: 4, y: 6 },
-        to: { x: 4, y: 4 },
+        to: { x: 4, y: 5 },
       });
 
       // AI plays as black
@@ -379,7 +388,7 @@ describe('GameFlow Integration', () => {
 
     it('AI vs AI can play multiple moves', async () => {
       const game = new Game();
-      game.setupInitialPosition();
+      game.setupClassicPosition();
 
       const whiteAI = new AIPlayer('white', 0);
       const blackAI = new AIPlayer('black', 0);
@@ -401,16 +410,16 @@ describe('GameFlow Integration', () => {
   describe('Game state management', () => {
     it('tracks game state correctly through multiple moves', () => {
       const game = new Game();
-      game.setupInitialPosition();
+      game.setupClassicPosition();
 
       const states: { turn: PlayerColor; turnNumber: number; pieceCount: number }[] = [];
 
-      // Play some moves and track state
+      // Use knight moves for reliable state tracking (knights work same in battlefield)
       const moves = [
-        { from: { x: 4, y: 6 }, to: { x: 4, y: 4 } },
-        { from: { x: 4, y: 1 }, to: { x: 4, y: 3 } },
-        { from: { x: 3, y: 6 }, to: { x: 3, y: 4 } },
-        { from: { x: 4, y: 3 }, to: { x: 3, y: 4 } }, // Capture
+        { from: { x: 1, y: 7 }, to: { x: 2, y: 5 } }, // Nc3
+        { from: { x: 1, y: 0 }, to: { x: 2, y: 2 } }, // Nc6
+        { from: { x: 2, y: 5 }, to: { x: 4, y: 4 } }, // Ne4
+        { from: { x: 2, y: 2 }, to: { x: 4, y: 3 } }, // Ne5
       ];
 
       for (const move of moves) {
@@ -436,12 +445,12 @@ describe('GameFlow Integration', () => {
       expect(states[1].turn).toBe('white');
       expect(states[1].turnNumber).toBe(2);
 
-      expect(states[3].pieceCount).toBe(31); // One capture
+      expect(states[3].pieceCount).toBe(32); // No captures
     });
 
     it('callbacks fire in correct order', () => {
       const game = new Game();
-      game.setupInitialPosition();
+      game.setupClassicPosition();
 
       const callOrder: string[] = [];
 
@@ -452,7 +461,7 @@ describe('GameFlow Integration', () => {
       game.executeMove({
         pieceId: pawn!.id,
         from: { x: 4, y: 6 },
-        to: { x: 4, y: 4 },
+        to: { x: 4, y: 5 }, // Battlefield chess: 1 square move
       });
 
       expect(callOrder).toEqual(['moved', 'turnChanged']);

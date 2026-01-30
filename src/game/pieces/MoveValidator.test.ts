@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isKingInCheck, isLegalMove, getLegalMoves, getAllLegalMoves, getGameStatus } from './MoveValidator';
-import { createPiece, setupBoardWithPieces, containsPosition } from '../../test-utils';
+import { createPiece, setupBoardWithPieces } from '../../test-utils';
 
 describe('MoveValidator', () => {
   describe('isKingInCheck', () => {
@@ -91,12 +91,12 @@ describe('MoveValidator', () => {
     });
 
     it('returns false for move to invalid target', () => {
-      const whitePawn = createPiece('pawn', 'white', { x: 4, y: 6 });
+      const whiteKnight = createPiece('knight', 'white', { x: 4, y: 4 });
       const whiteKing = createPiece('king', 'white', { x: 4, y: 7 });
-      const board = setupBoardWithPieces([whitePawn, whiteKing]);
+      const board = setupBoardWithPieces([whiteKnight, whiteKing]);
 
-      // Pawn cannot move sideways
-      expect(isLegalMove(whitePawn, { x: 5, y: 6 }, board)).toBe(false);
+      // Knight cannot move diagonally one square
+      expect(isLegalMove(whiteKnight, { x: 5, y: 5 }, board)).toBe(false);
     });
 
     it('returns false when moving king into check', () => {
@@ -213,13 +213,13 @@ describe('MoveValidator', () => {
     });
 
     it('returns "checkmate" when king is in check with no escape', () => {
-      // Back rank mate scenario
-      const whiteKing = createPiece('king', 'white', { x: 0, y: 7 });
-      const whitePawn1 = createPiece('pawn', 'white', { x: 0, y: 6 }, true);
-      const whitePawn2 = createPiece('pawn', 'white', { x: 1, y: 6 }, true);
-      const blackRook = createPiece('rook', 'black', { x: 7, y: 7 });
-      const blackKing = createPiece('king', 'black', { x: 4, y: 0 });
-      const board = setupBoardWithPieces([whiteKing, whitePawn1, whitePawn2, blackRook, blackKing]);
+      // Simple checkmate: King in corner with double rook coverage
+      const board = setupBoardWithPieces([
+        createPiece('king', 'white', { x: 0, y: 0 }),
+        createPiece('rook', 'black', { x: 0, y: 1 }), // a2 - gives check vertically
+        createPiece('rook', 'black', { x: 1, y: 1 }), // b2 - defends a2 rook and covers b1
+        createPiece('king', 'black', { x: 4, y: 4 }),
+      ]);
 
       expect(getGameStatus('white', board)).toBe('checkmate');
     });

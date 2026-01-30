@@ -51,6 +51,10 @@ export class Game {
   }
 
   setupInitialPosition(): void {
+    this.setupRandomPosition();
+  }
+
+  setupClassicPosition(): void {
     const backRankOrder: PieceType[] = ['rook', 'knight', 'bishop', 'queen', 'king', 'bishop', 'knight', 'rook'];
 
     // Black pieces (y=0 and y=1)
@@ -63,6 +67,47 @@ export class Game {
     for (let x = 0; x < 8; x++) {
       this.board.addPiece(this.createPiece('pawn', 'white', { x, y: 6 }));
       this.board.addPiece(this.createPiece(backRankOrder[x], 'white', { x, y: 7 }));
+    }
+  }
+
+  setupRandomPosition(): void {
+    const boardSize = this.board.getSize();
+
+    // Generate all board positions
+    const allPositions: Position[] = [];
+    for (let x = 0; x < boardSize; x++) {
+      for (let y = 0; y < boardSize; y++) {
+        allPositions.push({ x, y });
+      }
+    }
+
+    // Fisher-Yates shuffle
+    for (let i = allPositions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allPositions[i], allPositions[j]] = [allPositions[j], allPositions[i]];
+    }
+
+    // Define pieces for each player (standard chess pieces)
+    const piecesPerPlayer: PieceType[] = [
+      'king', 'queen',
+      'rook', 'rook',
+      'bishop', 'bishop',
+      'knight', 'knight',
+      'pawn', 'pawn', 'pawn', 'pawn', 'pawn', 'pawn', 'pawn', 'pawn',
+    ];
+
+    let positionIndex = 0;
+
+    // Place white pieces
+    for (const pieceType of piecesPerPlayer) {
+      const pos = allPositions[positionIndex++];
+      this.board.addPiece(this.createPiece(pieceType, 'white', pos));
+    }
+
+    // Place black pieces
+    for (const pieceType of piecesPerPlayer) {
+      const pos = allPositions[positionIndex++];
+      this.board.addPiece(this.createPiece(pieceType, 'black', pos));
     }
   }
 

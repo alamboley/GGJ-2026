@@ -11,17 +11,28 @@ const PIECE_VALUES: Record<PieceType, number> = {
   king: 0,
 };
 
-const CENTER_SQUARES = [
-  { x: 3, y: 3 }, { x: 3, y: 4 },
-  { x: 4, y: 3 }, { x: 4, y: 4 },
-];
+function getCenterSquares(boardSize: number): { x: number; y: number }[] {
+  const center = Math.floor(boardSize / 2);
+  return [
+    { x: center - 1, y: center - 1 }, { x: center - 1, y: center },
+    { x: center, y: center - 1 }, { x: center, y: center },
+  ];
+}
 
-const EXTENDED_CENTER = [
-  { x: 2, y: 2 }, { x: 2, y: 3 }, { x: 2, y: 4 }, { x: 2, y: 5 },
-  { x: 3, y: 2 }, { x: 3, y: 5 },
-  { x: 4, y: 2 }, { x: 4, y: 5 },
-  { x: 5, y: 2 }, { x: 5, y: 3 }, { x: 5, y: 4 }, { x: 5, y: 5 },
-];
+function getExtendedCenter(boardSize: number): { x: number; y: number }[] {
+  const center = Math.floor(boardSize / 2);
+  const squares: { x: number; y: number }[] = [];
+  for (let x = center - 2; x <= center + 1; x++) {
+    for (let y = center - 2; y <= center + 1; y++) {
+      // Skip the inner center squares
+      if (x >= center - 1 && x <= center && y >= center - 1 && y <= center) {
+        continue;
+      }
+      squares.push({ x, y });
+    }
+  }
+  return squares;
+}
 
 export class AIPlayer {
   private color: PlayerColor;
@@ -82,10 +93,13 @@ export class AIPlayer {
       }
     }
 
-    // Center control bonus
-    if (CENTER_SQUARES.some((sq) => sq.x === move.to.x && sq.y === move.to.y)) {
+    // Center control bonus (dynamic based on board size)
+    const boardSize = board.getSize();
+    const centerSquares = getCenterSquares(boardSize);
+    const extendedCenter = getExtendedCenter(boardSize);
+    if (centerSquares.some((sq) => sq.x === move.to.x && sq.y === move.to.y)) {
       score += 2;
-    } else if (EXTENDED_CENTER.some((sq) => sq.x === move.to.x && sq.y === move.to.y)) {
+    } else if (extendedCenter.some((sq) => sq.x === move.to.x && sq.y === move.to.y)) {
       score += 1;
     }
 

@@ -96,30 +96,26 @@ function getSlidingMoves(piece: ChessPiece, board: Board, directions: [number, n
 function getPawnMoves(piece: ChessPiece, board: Board): Position[] {
   const moves: Position[] = [];
   const { x, y } = piece.position;
-  const direction = piece.color === 'white' ? -1 : 1;
-  const startRow = piece.color === 'white' ? 6 : 1;
 
-  // Forward one square
-  const oneForward: Position = { x, y: y + direction };
-  if (board.isValidPosition(oneForward) && !board.getPieceAt(oneForward)) {
-    moves.push(oneForward);
+  // Battlefield chess: Pawns can move 1 square in any orthogonal direction
+  const orthogonalOffsets: [number, number][] = [
+    [0, 1], [0, -1], [1, 0], [-1, 0],
+  ];
 
-    // Forward two squares from starting position
-    if (y === startRow) {
-      const twoForward: Position = { x, y: y + 2 * direction };
-      if (!board.getPieceAt(twoForward)) {
-        moves.push(twoForward);
-      }
+  for (const [dx, dy] of orthogonalOffsets) {
+    const newPos: Position = { x: x + dx, y: y + dy };
+    if (board.isValidPosition(newPos) && !board.getPieceAt(newPos)) {
+      moves.push(newPos);
     }
   }
 
-  // Diagonal captures
-  const captureOffsets = [
-    { x: x - 1, y: y + direction },
-    { x: x + 1, y: y + direction },
+  // Battlefield chess: Pawns can capture in all 4 diagonal directions
+  const diagonalOffsets: [number, number][] = [
+    [1, 1], [1, -1], [-1, 1], [-1, -1],
   ];
 
-  for (const capturePos of captureOffsets) {
+  for (const [dx, dy] of diagonalOffsets) {
+    const capturePos: Position = { x: x + dx, y: y + dy };
     if (!board.isValidPosition(capturePos)) continue;
 
     const targetPiece = board.getPieceAt(capturePos);
@@ -154,10 +150,12 @@ function getAttackSquaresForPiece(piece: ChessPiece, board: Board): Position[] {
 
 function getPawnAttackSquares(piece: ChessPiece): Position[] {
   const { x, y } = piece.position;
-  const direction = piece.color === 'white' ? -1 : 1;
 
+  // Battlefield chess: Pawns attack in all 4 diagonal directions
   return [
-    { x: x - 1, y: y + direction },
-    { x: x + 1, y: y + direction },
+    { x: x + 1, y: y + 1 },
+    { x: x + 1, y: y - 1 },
+    { x: x - 1, y: y + 1 },
+    { x: x - 1, y: y - 1 },
   ];
 }

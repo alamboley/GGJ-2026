@@ -14,8 +14,8 @@ function init(): void {
   }
 
   // Initialize components
-  const scene = new Scene(container, 8);
-  const game = new Game(8);
+  const scene = new Scene(container, 12);
+  const game = new Game(12);
   const pieceFactory = new PieceFactory();
   const ai = new AIPlayer('black');
   const inputHandler = new InputHandler(scene, game);
