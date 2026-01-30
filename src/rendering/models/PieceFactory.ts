@@ -2,11 +2,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { PieceType, PlayerColor } from '../../types';
 
-const COLORS = {
-  white: 0xffffff,
-  black: 0x1a1a1a,
-};
-
 type ModelCache = {
   [key in PieceType]?: THREE.Group;
 };
