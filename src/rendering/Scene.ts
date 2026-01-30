@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { Position } from '../types';
+import type { AnimationManager } from './AnimationManager';
 
 export class Scene {
   private scene: THREE.Scene;
@@ -11,6 +12,8 @@ export class Scene {
   private pieceMeshes: Map<string, THREE.Object3D> = new Map();
   private highlightMeshes: THREE.Mesh[] = [];
   private boardGroup: THREE.Group;
+  private animationManager: AnimationManager | null = null;
+  private clock: THREE.Clock = new THREE.Clock();
 
   constructor(container: HTMLElement, boardSize: number = 8) {
     this.boardSize = boardSize;
@@ -349,6 +352,10 @@ export class Scene {
     return this.pieceMeshes;
   }
 
+  setAnimationManager(manager: AnimationManager): void {
+    this.animationManager = manager;
+  }
+
   render(): void {
     this.renderer.render(this.scene, this.camera);
   }
@@ -356,6 +363,13 @@ export class Scene {
   startRenderLoop(): void {
     const animate = () => {
       requestAnimationFrame(animate);
+      const deltaTime = this.clock.getDelta();
+
+      // Update animation manager if present
+      if (this.animationManager) {
+        this.animationManager.update(deltaTime);
+      }
+
       this.controls.update();
       this.render();
     };
