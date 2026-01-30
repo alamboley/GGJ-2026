@@ -25,6 +25,34 @@ npm run build    # Build for production
 npm run preview  # Preview production build
 ```
 
+## Testing
+
+Uses Vitest for unit and integration testing.
+
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode during development
+npm run test:coverage # Run tests with coverage report
+```
+
+### Test Structure
+
+```
+src/
+├── test-utils.ts                    # Shared test helpers
+├── game/
+│   ├── Board.test.ts                # Board CRUD and position tests
+│   ├── Game.test.ts                 # Game flow and callbacks
+│   └── pieces/
+│       ├── MovementRules.test.ts    # Piece movement generation
+│       └── MoveValidator.test.ts    # Check/checkmate/stalemate
+├── ai/
+│   └── AIPlayer.test.ts             # AI evaluation tests
+tests/
+└── integration/
+    └── GameFlow.test.ts             # Full game scenarios
+```
+
 ## Architecture
 
 ```
@@ -42,3 +70,5 @@ src/
 └── types/
     └── index.ts         # TypeScript interfaces
 ```
+
+When implementing new feature, update the test and run them.

@@ -2,4 +2,9 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   base: './',
+  test: {
+    globals: true,
+    environment: 'node',
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+  }
 })

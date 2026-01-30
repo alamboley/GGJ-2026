@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import type { PieceType, PlayerColor } from '../../types';
 
 const COLORS = {
-  white: 0xfff8dc, // Cream
-  black: 0x4a3728, // Dark brown
+  white: 0xffffff, // Pure white
+  black: 0x1a1a1a, // Near black
 };
 
 export class PieceFactory {
@@ -13,13 +13,17 @@ export class PieceFactory {
   constructor() {
     this.whiteMaterial = new THREE.MeshStandardMaterial({
       color: COLORS.white,
-      roughness: 0.4,
-      metalness: 0.1,
+      roughness: 0.3,
+      metalness: 0.2,
+      emissive: 0x333333,
+      emissiveIntensity: 0.3,
     });
     this.blackMaterial = new THREE.MeshStandardMaterial({
       color: COLORS.black,
-      roughness: 0.4,
-      metalness: 0.1,
+      roughness: 0.3,
+      metalness: 0.3,
+      emissive: 0x222222,
+      emissiveIntensity: 0.2,
     });
   }
 
