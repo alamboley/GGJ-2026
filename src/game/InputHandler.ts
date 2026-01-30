@@ -3,6 +3,8 @@ import type { Scene } from '../rendering/Scene';
 import type { Game } from './Game';
 import type { ChessPiece, Position, Move } from '../types';
 
+type SelectionCallback = (pieceId: string | null, validMoves: Move[]) => void;
+
 export class InputHandler {
   private scene: Scene;
   private game: Game;
@@ -11,6 +13,9 @@ export class InputHandler {
   private selectedPiece: ChessPiece | null = null;
   private validMoves: Move[] = [];
   private enabled: boolean = true;
+
+  // Callback for when selection changes
+  onSelectionChanged: SelectionCallback | null = null;
 
   constructor(scene: Scene, game: Game) {
     this.scene = scene;
@@ -95,7 +100,7 @@ export class InputHandler {
     }
   }
 
-  private selectPiece(piece: ChessPiece): void {
+  private selectPiece(piece: ChessPiece, notifyCallback: boolean = true): void {
     this.selectedPiece = piece;
     this.validMoves = this.game.getValidMoves(piece);
 
@@ -105,12 +110,38 @@ export class InputHandler {
 
     const validPositions = this.validMoves.map((m) => m.to);
     this.scene.highlightSquares(validPositions);
+
+    // Notify callback
+    if (notifyCallback) {
+      this.onSelectionChanged?.(piece.id, this.validMoves);
+    }
   }
 
-  private clearSelection(): void {
+  private clearSelection(notifyCallback: boolean = true): void {
     this.selectedPiece = null;
     this.validMoves = [];
     this.scene.clearHighlights();
+
+    // Notify callback
+    if (notifyCallback) {
+      this.onSelectionChanged?.(null, []);
+    }
+  }
+
+  // External selection methods (called from minimap)
+  selectPieceById(pieceId: string): void {
+    const piece = this.game.getBoard().getPiece(pieceId);
+    if (piece && piece.color === this.game.getCurrentTurn()) {
+      this.selectPiece(piece, false); // Don't notify to avoid infinite loop
+    }
+  }
+
+  clearSelectionExternal(): void {
+    this.clearSelection(false); // Don't notify to avoid infinite loop
+  }
+
+  getSelectedPieceId(): string | null {
+    return this.selectedPiece?.id ?? null;
   }
 
   setEnabled(enabled: boolean): void {

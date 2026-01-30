@@ -13,6 +13,11 @@ let lastPlayerMove: { move: Move; pieceType: PieceType; captured: { type: PieceT
 let minimapCanvas: HTMLCanvasElement | null = null;
 let minimapCtx: CanvasRenderingContext2D | null = null;
 let gameRef: Game | null = null;
+let inputHandlerRef: InputHandler | null = null;
+
+// Minimap selection state
+let minimapSelectedPieceId: string | null = null;
+let minimapValidMoves: Move[] = [];
 
 // Piece symbols for minimap
 const PIECE_SYMBOLS: Record<PieceType, string> = {
@@ -96,6 +101,8 @@ async function init(): Promise<void> {
 
   game.onTurnChanged = (turn) => {
     updateTurnIndicator(turn, game.getGameStatus());
+    // Clear minimap selection on turn change
+    clearMinimapSelection();
 
     if (turn === 'black' && !game.isGameOver()) {
       inputHandler.setEnabled(false);
@@ -119,8 +126,16 @@ async function init(): Promise<void> {
 
   // Create and initialize minimap
   gameRef = game;
+  inputHandlerRef = inputHandler;
   createMinimap(container);
   updateMinimap();
+
+  // Sync 3D selection to minimap
+  inputHandler.onSelectionChanged = (pieceId, validMoves) => {
+    minimapSelectedPieceId = pieceId;
+    minimapValidMoves = validMoves;
+    updateMinimap();
+  };
 
   // Start render loop
   scene.startRenderLoop();
@@ -253,7 +268,6 @@ function createMinimap(container: HTMLElement): void {
     background: rgba(0, 0, 0, 0.7);
     padding: 10px;
     border-radius: 8px;
-    pointer-events: none;
   `;
 
   const title = document.createElement('div');
@@ -265,7 +279,7 @@ function createMinimap(container: HTMLElement): void {
     margin-bottom: 8px;
     text-shadow: 1px 1px 2px black;
   `;
-  title.textContent = 'Board Overview';
+  title.textContent = 'Board Overview (Click to move)';
   minimapContainer.appendChild(title);
 
   // Legend
@@ -292,11 +306,93 @@ function createMinimap(container: HTMLElement): void {
   minimapCanvas.style.cssText = `
     border: 2px solid #444;
     border-radius: 4px;
+    cursor: pointer;
   `;
   minimapContainer.appendChild(minimapCanvas);
 
+  // Add click handler
+  minimapCanvas.addEventListener('click', onMinimapClick);
+
   minimapCtx = minimapCanvas.getContext('2d');
   container.appendChild(minimapContainer);
+}
+
+function onMinimapClick(event: MouseEvent): void {
+  if (!minimapCanvas || !gameRef || !inputHandlerRef) return;
+  if (!inputHandlerRef.isEnabled()) return; // Don't allow input during AI turn
+
+  const rect = minimapCanvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+
+  const boardSize = 12;
+  const cellSize = minimapCanvas.width / boardSize;
+
+  const boardX = Math.floor(x / cellSize);
+  const boardY = Math.floor(y / cellSize);
+
+  if (boardX < 0 || boardX >= boardSize || boardY < 0 || boardY >= boardSize) return;
+
+  const position = { x: boardX, y: boardY };
+  const clickedPiece = gameRef.getBoard().getPieceAt(position);
+
+  if (minimapSelectedPieceId) {
+    // Check if clicking on a valid move target
+    const validMove = minimapValidMoves.find(
+      (m) => m.to.x === position.x && m.to.y === position.y
+    );
+
+    if (validMove) {
+      // Execute the move
+      gameRef.executeMove(validMove);
+      clearMinimapSelection();
+      return;
+    }
+
+    // Check if clicking on own piece to reselect
+    if (clickedPiece && clickedPiece.color === gameRef.getCurrentTurn()) {
+      selectMinimapPiece(clickedPiece.id);
+      return;
+    }
+
+    // Clicking elsewhere - deselect
+    clearMinimapSelection();
+    return;
+  }
+
+  // No piece selected - try to select one
+  if (clickedPiece && clickedPiece.color === gameRef.getCurrentTurn()) {
+    selectMinimapPiece(clickedPiece.id);
+  }
+}
+
+function selectMinimapPiece(pieceId: string): void {
+  if (!gameRef) return;
+
+  const piece = gameRef.getBoard().getPiece(pieceId);
+  if (!piece) return;
+
+  minimapSelectedPieceId = pieceId;
+  minimapValidMoves = gameRef.getValidMoves(piece);
+
+  // Also update 3D view
+  if (inputHandlerRef) {
+    inputHandlerRef.selectPieceById(pieceId);
+  }
+
+  updateMinimap();
+}
+
+function clearMinimapSelection(): void {
+  minimapSelectedPieceId = null;
+  minimapValidMoves = [];
+
+  // Also clear 3D view
+  if (inputHandlerRef) {
+    inputHandlerRef.clearSelectionExternal();
+  }
+
+  updateMinimap();
 }
 
 function updateMinimap(): void {
@@ -318,6 +414,25 @@ function updateMinimap(): void {
     }
   }
 
+  // Draw valid move highlights
+  for (const move of minimapValidMoves) {
+    const x = move.to.x * cellSize;
+    const y = move.to.y * cellSize;
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
+    ctx.fillRect(x, y, cellSize, cellSize);
+  }
+
+  // Draw selected piece highlight
+  if (minimapSelectedPieceId) {
+    const selectedPiece = gameRef.getBoard().getPiece(minimapSelectedPieceId);
+    if (selectedPiece) {
+      const x = selectedPiece.position.x * cellSize;
+      const y = selectedPiece.position.y * cellSize;
+      ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+      ctx.fillRect(x, y, cellSize, cellSize);
+    }
+  }
+
   // Draw pieces
   const pieces = gameRef.getBoard().getAllPieces();
   ctx.textAlign = 'center';
@@ -327,13 +442,22 @@ function updateMinimap(): void {
     const x = piece.position.x * cellSize + cellSize / 2;
     const y = piece.position.y * cellSize + cellSize / 2;
 
+    // Highlight selected piece with glow
+    const isSelected = piece.id === minimapSelectedPieceId;
+
     // Draw piece background circle
     ctx.beginPath();
     ctx.arc(x, y, cellSize * 0.4, 0, Math.PI * 2);
     ctx.fillStyle = piece.color === 'white' ? '#4fc3f7' : '#ff6b6b';
     ctx.fill();
-    ctx.strokeStyle = piece.color === 'white' ? '#0288d1' : '#c62828';
-    ctx.lineWidth = 1.5;
+
+    if (isSelected) {
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 3;
+    } else {
+      ctx.strokeStyle = piece.color === 'white' ? '#0288d1' : '#c62828';
+      ctx.lineWidth = 1.5;
+    }
     ctx.stroke();
 
     // Draw piece symbol
