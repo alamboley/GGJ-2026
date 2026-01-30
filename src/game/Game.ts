@@ -52,6 +52,8 @@ export class Game {
 
   setupInitialPosition(): void {
     this.setupRandomPosition();
+    // Calculate initial game status (king might start in check with random placement)
+    this.gameStatus = getGameStatus(this.currentTurn, this.board);
   }
 
   setupClassicPosition(): void {

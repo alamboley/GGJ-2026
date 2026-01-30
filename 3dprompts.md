@@ -57,7 +57,7 @@ no base, no environment
 
 
 ♘ KNIGHT – Beast Rider / Elite Assassin
-heroic fantasy chess knight piece, elite fantasy warrior,
+heroic fantasy chess rider piece, elite fantasy warrior,
 dynamic but contained pose,
 helm shaped like a beast or dragon,
 light armor designed for speed,

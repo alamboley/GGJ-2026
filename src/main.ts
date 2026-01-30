@@ -98,7 +98,7 @@ async function init(): Promise<void> {
 
   // Create UI
   createUI(container);
-  updateTurnIndicator('white', 'playing');
+  updateTurnIndicator('white', game.getGameStatus());
 
   // Start render loop
   scene.startRenderLoop();
