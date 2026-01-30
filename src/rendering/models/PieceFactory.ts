@@ -20,18 +20,14 @@ export class PieceFactory {
 
   constructor() {
     this.whiteMaterial = new THREE.MeshStandardMaterial({
-      color: COLORS.white,
-      roughness: 0.3,
-      metalness: 0.2,
-      emissive: 0x333333,
-      emissiveIntensity: 0.3,
+      color: 0xffffff,
+      roughness: 0.5,
+      metalness: 0.0,
     });
     this.blackMaterial = new THREE.MeshStandardMaterial({
-      color: COLORS.black,
-      roughness: 0.3,
-      metalness: 0.3,
-      emissive: 0x222222,
-      emissiveIntensity: 0.2,
+      color: 0x222222,
+      roughness: 0.5,
+      metalness: 0.0,
     });
     this.loader = new GLTFLoader();
   }
@@ -59,14 +55,26 @@ export class PieceFactory {
       return this.createFallbackMesh(type, color);
     }
 
-    const material = color === 'white' ? this.whiteMaterial.clone() : this.blackMaterial.clone();
-
-    // Clone the model and apply material
+    // Clone the model
     const clone = cachedModel.clone(true);
+
+    // Create a fresh material for this piece
+    const materialColor = color === 'white' ? 0xffffff : 0x222222;
 
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
-        child.material = material;
+        // Create new material for each mesh
+        child.material = new THREE.MeshStandardMaterial({
+          color: materialColor,
+          roughness: 0.5,
+          metalness: 0.0,
+          side: THREE.DoubleSide,
+        });
+
+        // Ensure geometry has computed normals
+        if (child.geometry) {
+          child.geometry.computeVertexNormals();
+        }
       }
     });
 
