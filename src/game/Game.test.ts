@@ -379,7 +379,7 @@ describe('Game', () => {
       const pawnToCapture = game.getBoard().getPieceAt({ x: 3, y: 2 });
       game.executeMove({ pieceId: knight!.id, from: { x: 4, y: 4 }, to: { x: 3, y: 2 } });
 
-      expect(callback).toHaveBeenCalledWith(pawnToCapture!.id);
+      expect(callback).toHaveBeenCalledWith(pawnToCapture!.id, 'pawn', 'black');
     });
 
     it('calls onTurnChanged callback', () => {

@@ -3,7 +3,7 @@ import { getLegalMoves, getGameStatus, isLegalMove } from './pieces/MoveValidato
 import type { GameState, PlayerColor, Move, ChessPiece, PieceType, GameStatus, Position } from '../types';
 
 type MoveCallback = (move: Move) => void;
-type CaptureCallback = (pieceId: string) => void;
+type CaptureCallback = (pieceId: string, pieceType: PieceType, pieceColor: PlayerColor) => void;
 type GameOverCallback = (status: GameStatus, winner: PlayerColor | null) => void;
 type TurnCallback = (turn: PlayerColor) => void;
 
@@ -151,9 +151,11 @@ export class Game {
     // Handle capture
     const capturedPiece = this.board.getPieceAt(move.to);
     if (capturedPiece) {
+      const capturedType = capturedPiece.type;
+      const capturedColor = capturedPiece.color;
       this.board.removePiece(capturedPiece.id);
       move.capturedPieceId = capturedPiece.id;
-      this.onPieceCaptured?.(capturedPiece.id);
+      this.onPieceCaptured?.(capturedPiece.id, capturedType, capturedColor);
     }
 
     // Move the piece

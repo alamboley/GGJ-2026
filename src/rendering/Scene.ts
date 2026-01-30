@@ -67,6 +67,32 @@ export class Scene {
     this.scene.add(directionalLight2);
   }
 
+  private createTextSprite(text: string): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    const size = 128;
+    canvas.width = size;
+    canvas.height = size;
+
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#ffffff';
+    context.font = 'bold 80px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(text, size / 2, size / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    const spriteMaterial = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+    });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(0.8, 0.8, 1);
+
+    return sprite;
+  }
+
   private createBoard(): void {
     const tileSize = 1;
     const halfBoard = (this.boardSize * tileSize) / 2;
@@ -89,6 +115,38 @@ export class Scene {
         tile.userData = { boardX: x, boardY: z };
         this.boardGroup.add(tile);
       }
+    }
+
+    // Add coordinate labels
+    this.addCoordinateLabels(halfBoard);
+  }
+
+  private addCoordinateLabels(halfBoard: number): void {
+    // Column labels (A-L) along the front edge (positive Z)
+    const columnLabels = 'ABCDEFGHIJKL';
+    for (let x = 0; x < this.boardSize; x++) {
+      const label = columnLabels[x];
+      if (label) {
+        const sprite = this.createTextSprite(label);
+        sprite.position.set(
+          x - halfBoard + 0.5,
+          0.1,
+          halfBoard + 0.7
+        );
+        this.scene.add(sprite);
+      }
+    }
+
+    // Row labels (1-12) along the left edge (negative X)
+    for (let z = 0; z < this.boardSize; z++) {
+      const label = String(z + 1);
+      const sprite = this.createTextSprite(label);
+      sprite.position.set(
+        -halfBoard - 0.7,
+        0.1,
+        z - halfBoard + 0.5
+      );
+      this.scene.add(sprite);
     }
   }
 

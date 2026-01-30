@@ -3,7 +3,11 @@ import { Game } from './game/Game';
 import { PieceFactory } from './rendering/models/PieceFactory';
 import { AIPlayer } from './ai/AIPlayer';
 import { InputHandler } from './game/InputHandler';
-import type { GameStatus, PlayerColor } from './types';
+import type { GameStatus, PlayerColor, PieceType, Move } from './types';
+
+// Store info about captures and moves for feedback
+let lastCapturedPiece: { type: PieceType; color: PlayerColor } | null = null;
+let lastPlayerMove: { move: Move; pieceType: PieceType; captured: { type: PieceType; color: PlayerColor } | null } | null = null;
 
 function init(): void {
   const container = document.getElementById('app');
@@ -32,10 +36,29 @@ function init(): void {
   // Wire game events to scene
   game.onPieceMoved = (move) => {
     scene.updatePiecePosition(move.pieceId, move.to);
+
+    const piece = game.getBoard().getPiece(move.pieceId);
+    if (piece) {
+      if (piece.color === 'white') {
+        // Store player move for display alongside AI move
+        lastPlayerMove = {
+          move,
+          pieceType: piece.type,
+          captured: lastCapturedPiece,
+        };
+        lastCapturedPiece = null;
+      } else {
+        // Show both player and AI moves together
+        showMoveLog(lastPlayerMove, { move, pieceType: piece.type, captured: lastCapturedPiece });
+        lastCapturedPiece = null;
+        lastPlayerMove = null;
+      }
+    }
   };
 
-  game.onPieceCaptured = (pieceId) => {
+  game.onPieceCaptured = (pieceId, pieceType, pieceColor) => {
     scene.removePieceMesh(pieceId);
+    lastCapturedPiece = { type: pieceType, color: pieceColor };
   };
 
   game.onGameOver = (status: GameStatus, winner: PlayerColor | null) => {
@@ -60,7 +83,13 @@ function init(): void {
         if (!game.isGameOver()) {
           inputHandler.setEnabled(true);
         }
+      }).catch((err) => {
+        console.error('AI move error:', err);
+        inputHandler.setEnabled(true);
       });
+    } else if (turn === 'white' && !game.isGameOver()) {
+      // Safety: ensure input is enabled when it's the player's turn
+      inputHandler.setEnabled(true);
     }
   };
 
@@ -97,6 +126,18 @@ function createUI(container: HTMLElement): void {
   statusIndicator.style.marginTop = '10px';
   uiContainer.appendChild(statusIndicator);
 
+  const moveLog = document.createElement('div');
+  moveLog.id = 'move-log';
+  moveLog.style.cssText = `
+    margin-top: 15px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 5px;
+    font-size: 14px;
+    max-width: 250px;
+  `;
+  uiContainer.appendChild(moveLog);
+
   container.appendChild(uiContainer);
 }
 
@@ -116,6 +157,65 @@ function updateTurnIndicator(turn: PlayerColor, status: GameStatus): void {
       statusIndicator.textContent = '';
     }
   }
+}
+
+function formatPosition(x: number, y: number): string {
+  const col = String.fromCharCode(65 + x); // A, B, C, etc.
+  const row = y + 1;
+  return `${col}${row}`;
+}
+
+function formatPieceType(type: PieceType): string {
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+interface MoveInfo {
+  move: Move;
+  pieceType: PieceType;
+  captured: { type: PieceType; color: PlayerColor } | null;
+}
+
+function showMoveLog(playerMove: MoveInfo | null, aiMove: MoveInfo): void {
+  const moveLog = document.getElementById('move-log');
+  if (!moveLog) return;
+
+  let logText = '';
+
+  // Show player move
+  if (playerMove) {
+    const from = formatPosition(playerMove.move.from.x, playerMove.move.from.y);
+    const to = formatPosition(playerMove.move.to.x, playerMove.move.to.y);
+    const pieceName = formatPieceType(playerMove.pieceType);
+
+    logText += `<strong>You moved:</strong> ${pieceName} ${from} → ${to}`;
+
+    if (playerMove.captured) {
+      const capturedName = formatPieceType(playerMove.captured.type);
+      logText += `<br><span style="color: #4CAF50;">Captured ${capturedName}!</span>`;
+    }
+
+    logText += '<hr style="border-color: rgba(255,255,255,0.3); margin: 8px 0;">';
+  }
+
+  // Show AI move
+  const from = formatPosition(aiMove.move.from.x, aiMove.move.from.y);
+  const to = formatPosition(aiMove.move.to.x, aiMove.move.to.y);
+  const pieceName = formatPieceType(aiMove.pieceType);
+
+  logText += `<strong>AI moved:</strong> ${pieceName} ${from} → ${to}`;
+
+  if (aiMove.captured) {
+    const capturedName = formatPieceType(aiMove.captured.type);
+    logText += `<br><span style="color: #ff6b6b;">Captured your ${capturedName}!</span>`;
+  }
+
+  moveLog.innerHTML = logText;
+
+  // Brief highlight animation
+  moveLog.style.background = 'rgba(100, 50, 50, 0.8)';
+  setTimeout(() => {
+    moveLog.style.background = 'rgba(0, 0, 0, 0.6)';
+  }, 500);
 }
 
 function showGameOverMessage(message: string): void {
