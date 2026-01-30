@@ -8,7 +8,7 @@ export class Scene {
   private renderer: THREE.WebGLRenderer;
   private controls: OrbitControls;
   private boardSize: number;
-  private pieceMeshes: Map<string, THREE.Mesh> = new Map();
+  private pieceMeshes: Map<string, THREE.Object3D> = new Map();
   private highlightMeshes: THREE.Mesh[] = [];
   private boardGroup: THREE.Group;
 
@@ -154,7 +154,7 @@ export class Scene {
     const halfBoard = this.boardSize / 2;
     return new THREE.Vector3(
       position.x - halfBoard + 0.5,
-      0.05,
+      0.8,
       position.y - halfBoard + 0.5
     );
   }
@@ -170,7 +170,7 @@ export class Scene {
     return null;
   }
 
-  addPieceMesh(pieceId: string, mesh: THREE.Mesh, position: Position): void {
+  addPieceMesh(pieceId: string, mesh: THREE.Object3D, position: Position): void {
     const worldPos = this.boardToWorld(position);
     mesh.position.copy(worldPos);
     mesh.userData.pieceId = pieceId;
@@ -272,7 +272,7 @@ export class Scene {
     return this.boardGroup;
   }
 
-  getPieceMeshes(): Map<string, THREE.Mesh> {
+  getPieceMeshes(): Map<string, THREE.Object3D> {
     return this.pieceMeshes;
   }
 

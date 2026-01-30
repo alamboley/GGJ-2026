@@ -9,7 +9,7 @@ import type { GameStatus, PlayerColor, PieceType, Move } from './types';
 let lastCapturedPiece: { type: PieceType; color: PlayerColor } | null = null;
 let lastPlayerMove: { move: Move; pieceType: PieceType; captured: { type: PieceType; color: PlayerColor } | null } | null = null;
 
-function init(): void {
+async function init(): Promise<void> {
   const container = document.getElementById('app');
 
   if (!container) {
@@ -23,6 +23,9 @@ function init(): void {
   const pieceFactory = new PieceFactory();
   const ai = new AIPlayer('black');
   const inputHandler = new InputHandler(scene, game);
+
+  // Load 3D models before setting up the game
+  await pieceFactory.loadModels();
 
   // Setup initial position
   game.setupInitialPosition();
