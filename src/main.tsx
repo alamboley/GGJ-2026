@@ -11,6 +11,7 @@ import { UIManager } from './ui/UIManager';
 import { MinimapManager } from './ui/MinimapManager';
 import { SettingsManager } from './ui/SettingsManager';
 import { MainMenu } from './ui/MainMenu';
+import { GameSettings } from './ui/GameSettings';
 import type { GameStatus, PlayerColor, PieceType, Move, GameConfig } from './types';
 
 // Store info about captures for feedback
@@ -35,6 +36,13 @@ let containerRef: HTMLElement | null = null;
 // Menu references
 let menuRoot: Root | null = null;
 let menuContainer: HTMLElement | null = null;
+
+// Settings screen references
+let settingsRoot: Root | null = null;
+let settingsContainer: HTMLElement | null = null;
+
+// Background scene reference (used for menu/settings)
+let backgroundSceneRef: Scene | null = null;
 
 // Current game config
 let currentConfig: GameConfig = { boardSize: 12, pawnsPerPlayer: 8 };
@@ -241,6 +249,11 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
     settingsManagerRef?.togglePanel();
   });
 
+  // Wire up exit button to return to menu
+  uiManagerRef.setExitCallback(() => {
+    returnToMenu();
+  });
+
   // Update check indicator for initial state (king might start in check with random placement)
   updateCheckIndicator();
 
@@ -274,6 +287,9 @@ async function restartGame(config: GameConfig): Promise<void> {
   const gameOverOverlay = document.getElementById('game-over-overlay');
   if (gameOverOverlay) gameOverOverlay.remove();
 
+  const exitButton = document.getElementById('exit-button');
+  if (exitButton) exitButton.remove();
+
   // Clear references
   gameRef = null;
   uiManagerRef = null;
@@ -282,6 +298,164 @@ async function restartGame(config: GameConfig): Promise<void> {
 
   // Re-initialize game with new config
   await initGame(config);
+}
+
+function updateBackgroundScene(boardSize: number): void {
+  if (!containerRef) return;
+
+  // Dispose old background scene
+  if (backgroundSceneRef) {
+    backgroundSceneRef.dispose();
+  }
+
+  // Create new scene with updated board size
+  backgroundSceneRef = new Scene(containerRef, boardSize);
+  backgroundSceneRef.startRenderLoop();
+}
+
+function showSettings(): void {
+  if (!containerRef) return;
+
+  // Create settings container
+  settingsContainer = document.createElement('div');
+  settingsContainer.id = 'settings-root';
+  containerRef.appendChild(settingsContainer);
+
+  settingsRoot = createRoot(settingsContainer);
+  settingsRoot.render(
+    <GameSettings
+      initialConfig={currentConfig}
+      onBoardSizeChange={(boardSize: number) => {
+        // Update 3D scene in real-time when board size changes
+        updateBackgroundScene(boardSize);
+      }}
+      onLaunch={(config: GameConfig) => {
+        currentConfig = config;
+
+        // Hide settings with fade effect
+        if (settingsContainer) {
+          settingsContainer.style.transition = 'opacity 0.3s ease-out';
+          settingsContainer.style.opacity = '0';
+        }
+
+        // After fade, unmount settings and start game
+        setTimeout(async () => {
+          if (settingsRoot) {
+            settingsRoot.unmount();
+            settingsRoot = null;
+          }
+          if (settingsContainer) {
+            settingsContainer.remove();
+            settingsContainer = null;
+          }
+
+          // Use the current background scene (already has correct board size)
+          await initGame(currentConfig, backgroundSceneRef!);
+        }, 300);
+      }}
+      onBack={() => {
+        // Hide settings with fade effect
+        if (settingsContainer) {
+          settingsContainer.style.transition = 'opacity 0.3s ease-out';
+          settingsContainer.style.opacity = '0';
+        }
+
+        // After fade, unmount settings and show main menu
+        setTimeout(() => {
+          if (settingsRoot) {
+            settingsRoot.unmount();
+            settingsRoot = null;
+          }
+          if (settingsContainer) {
+            settingsContainer.remove();
+            settingsContainer = null;
+          }
+
+          // Show main menu again
+          showMainMenu();
+        }, 300);
+      }}
+    />
+  );
+}
+
+function showMainMenu(): void {
+  if (!containerRef) return;
+
+  menuContainer = document.createElement('div');
+  menuContainer.id = 'menu-root';
+  containerRef.appendChild(menuContainer);
+
+  menuRoot = createRoot(menuContainer);
+  menuRoot.render(
+    <MainMenu
+      onStart={() => {
+        // Hide menu with fade effect
+        if (menuContainer) {
+          menuContainer.style.transition = 'opacity 0.3s ease-out';
+          menuContainer.style.opacity = '0';
+        }
+
+        // After fade, unmount menu and show settings
+        setTimeout(() => {
+          if (menuRoot) {
+            menuRoot.unmount();
+            menuRoot = null;
+          }
+          if (menuContainer) {
+            menuContainer.remove();
+            menuContainer = null;
+          }
+
+          // Show game settings screen
+          showSettings();
+        }, 300);
+      }}
+    />
+  );
+}
+
+async function returnToMenu(): Promise<void> {
+  // Dispose game scene (but not the background scene)
+  if (sceneRef) {
+    sceneRef.dispose();
+    sceneRef = null;
+  }
+
+  // Remove all game UI elements
+  const gameUI = document.getElementById('game-ui');
+  if (gameUI) gameUI.remove();
+
+  const moveLog = document.getElementById('move-log');
+  if (moveLog) moveLog.remove();
+
+  const minimapContainer = document.getElementById('minimap-container');
+  if (minimapContainer) minimapContainer.remove();
+
+  const gameOverOverlay = document.getElementById('game-over-overlay');
+  if (gameOverOverlay) gameOverOverlay.remove();
+
+  const exitButton = document.getElementById('exit-button');
+  if (exitButton) exitButton.remove();
+
+  // Remove settings panel if open
+  const settingsPanel = document.getElementById('settings-panel');
+  if (settingsPanel) settingsPanel.remove();
+
+  // Clear game references
+  gameRef = null;
+  uiManagerRef = null;
+  minimapManagerRef = null;
+  rewindManagerRef = null;
+  settingsManagerRef = null;
+
+  // Create a fresh background scene
+  if (!containerRef) return;
+  backgroundSceneRef = new Scene(containerRef, currentConfig.boardSize);
+  backgroundSceneRef.startRenderLoop();
+
+  // Show the main menu
+  showMainMenu();
 }
 
 async function init(): Promise<void> {
@@ -295,41 +469,11 @@ async function init(): Promise<void> {
   containerRef = container;
 
   // Create a background scene (visible behind the menu)
-  const backgroundScene = new Scene(container, currentConfig.boardSize);
-  backgroundScene.startRenderLoop();
+  backgroundSceneRef = new Scene(container, currentConfig.boardSize);
+  backgroundSceneRef.startRenderLoop();
 
   // Show the main menu
-  menuContainer = document.createElement('div');
-  menuContainer.id = 'menu-root';
-  container.appendChild(menuContainer);
-
-  menuRoot = createRoot(menuContainer);
-  menuRoot.render(
-    <MainMenu
-      onStart={() => {
-        // Hide menu with fade effect
-        if (menuContainer) {
-          menuContainer.style.transition = 'opacity 0.3s ease-out';
-          menuContainer.style.opacity = '0';
-        }
-
-        // After fade, unmount menu and start game
-        setTimeout(async () => {
-          if (menuRoot) {
-            menuRoot.unmount();
-            menuRoot = null;
-          }
-          if (menuContainer) {
-            menuContainer.remove();
-            menuContainer = null;
-          }
-
-          // Initialize the game, reusing the background scene
-          await initGame(currentConfig, backgroundScene);
-        }, 300);
-      }}
-    />
-  );
+  showMainMenu();
 }
 
 function updateCheckIndicator(): void {

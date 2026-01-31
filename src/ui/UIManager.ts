@@ -12,6 +12,7 @@ export class UIManager {
   private rewindButton: HTMLButtonElement | null = null;
   private maskToggleCallback: ((enabled: boolean) => void) | null = null;
   private settingsCallback: (() => void) | null = null;
+  private exitCallback: (() => void) | null = null;
   private masksEnabled: boolean = true;
 
   constructor(container: HTMLElement) {
@@ -145,6 +146,39 @@ export class UIManager {
       settingsButton.style.transform = 'rotate(0deg)';
     });
     uiContainer.appendChild(settingsButton);
+
+    // Exit button (bottom center of screen)
+    const exitButton = document.createElement('button');
+    exitButton.id = 'exit-button';
+    exitButton.textContent = 'Exit to Menu';
+    exitButton.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 25px;
+      font-size: 14px;
+      cursor: pointer;
+      background: rgba(120, 40, 40, 0.8);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      pointer-events: auto;
+      transition: background 0.2s, transform 0.1s;
+      z-index: 100;
+    `;
+    exitButton.addEventListener('click', () => {
+      if (this.exitCallback) {
+        this.exitCallback();
+      }
+    });
+    exitButton.addEventListener('mouseenter', () => {
+      exitButton.style.background = 'rgba(150, 50, 50, 0.9)';
+    });
+    exitButton.addEventListener('mouseleave', () => {
+      exitButton.style.background = 'rgba(120, 40, 40, 0.8)';
+    });
+    this.container.appendChild(exitButton);
 
     const moveLog = document.createElement('div');
     moveLog.id = 'move-log';
@@ -306,6 +340,13 @@ export class UIManager {
    */
   setSettingsCallback(callback: () => void): void {
     this.settingsCallback = callback;
+  }
+
+  /**
+   * Set the callback for the exit button
+   */
+  setExitCallback(callback: () => void): void {
+    this.exitCallback = callback;
   }
 
   /**

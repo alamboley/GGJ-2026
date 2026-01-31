@@ -198,8 +198,8 @@ export class Scene {
   }
 
   private addCoordinateLabels(halfBoard: number): void {
-    // Column labels (A-L) along the front edge (positive Z)
-    const columnLabels = 'ABCDEFGHIJKL';
+    // Column labels (A-P) along the front edge (positive Z) - supports up to 16 columns
+    const columnLabels = 'ABCDEFGHIJKLMNOP';
     for (let x = 0; x < this.boardSize; x++) {
       const label = columnLabels[x];
       if (label) {
@@ -213,7 +213,7 @@ export class Scene {
       }
     }
 
-    // Row labels (1-12) along the left edge (negative X)
+    // Row labels (1-16) along the left edge (negative X)
     for (let z = 0; z < this.boardSize; z++) {
       const label = String(z + 1);
       const sprite = this.createTextSprite(label);
