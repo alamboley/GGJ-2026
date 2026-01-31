@@ -122,6 +122,15 @@ describe('Game', () => {
       const allPieces = game.getBoard().getAllPieces();
       expect(allPieces.every(p => p.hasMoved === false)).toBe(true);
     });
+
+    it('should never start with a king in check', () => {
+      for (let i = 0; i < 50; i++) {
+        const testGame = new Game();
+        testGame.setupInitialPosition();
+        expect(testGame.getGameStatus()).not.toBe('check');
+        expect(testGame.getGameStatus()).not.toBe('checkmate');
+      }
+    });
   });
 
   describe('setupClassicPosition', () => {

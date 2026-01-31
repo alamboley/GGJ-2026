@@ -79,6 +79,10 @@ export class Board {
     );
   }
 
+  clear(): void {
+    this.pieces.clear();
+  }
+
   clone(): Board {
     const cloned = new Board(this.size);
     for (const piece of this.pieces.values()) {

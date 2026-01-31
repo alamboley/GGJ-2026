@@ -1,5 +1,5 @@
 import { Board } from './Board';
-import { getLegalMoves, getGameStatus, isLegalMove } from './pieces/MoveValidator';
+import { getLegalMoves, getGameStatus, isLegalMove, isKingInCheck } from './pieces/MoveValidator';
 import type { GameState, PlayerColor, Move, ChessPiece, PieceType, GameStatus, Position, MoveHistoryEntry, GameConfig } from '../types';
 
 type MoveCallback = (move: Move) => void;
@@ -82,6 +82,25 @@ export class Game {
   }
 
   setupRandomPosition(): void {
+    const maxAttempts = 100;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      this.board.clear();
+      this.placeRandomPieces();
+
+      // Validate that neither king starts in check
+      const whiteInCheck = isKingInCheck('white', this.board);
+      const blackInCheck = isKingInCheck('black', this.board);
+
+      if (!whiteInCheck && !blackInCheck) {
+        return;
+      }
+    }
+
+    throw new Error('Failed to generate valid starting position after maximum attempts');
+  }
+
+  private placeRandomPieces(): void {
     const boardSize = this.board.getSize();
 
     // Generate all board positions
