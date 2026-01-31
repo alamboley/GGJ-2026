@@ -5,7 +5,8 @@
       "Bash(npm test:*)",
       "Bash(npm run test:coverage:*)",
       "Bash(npx tsc:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

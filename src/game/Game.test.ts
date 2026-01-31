@@ -541,4 +541,213 @@ describe('Game', () => {
       // Let's do a proper back rank mate setup
     });
   });
+
+  describe('undoLastMove', () => {
+    beforeEach(() => {
+      game.setupClassicPosition();
+    });
+
+    it('returns null when no moves to undo', () => {
+      const result = game.undoLastMove();
+      expect(result).toBeNull();
+    });
+
+    it('canUndo returns false when no moves', () => {
+      expect(game.canUndo()).toBe(false);
+    });
+
+    it('canUndo returns true after a move', () => {
+      const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: pawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+      expect(game.canUndo()).toBe(true);
+    });
+
+    it('restores piece position after undo', () => {
+      const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: pawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+
+      game.undoLastMove();
+
+      expect(game.getBoard().getPieceAt({ x: 4, y: 6 })).toBeDefined();
+      expect(game.getBoard().getPieceAt({ x: 4, y: 5 })).toBeUndefined();
+    });
+
+    it('restores hasMoved flag after undo', () => {
+      const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      expect(pawn!.hasMoved).toBe(false);
+
+      game.executeMove({
+        pieceId: pawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+      expect(pawn!.hasMoved).toBe(true);
+
+      game.undoLastMove();
+      expect(pawn!.hasMoved).toBe(false);
+    });
+
+    it('restores turn after undo', () => {
+      const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: pawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+      expect(game.getCurrentTurn()).toBe('black');
+
+      game.undoLastMove();
+      expect(game.getCurrentTurn()).toBe('white');
+    });
+
+    it('restores captured piece after undo', () => {
+      // Set up a capture scenario with knight
+      const whiteKnight = game.getBoard().getPieceAt({ x: 1, y: 7 });
+      game.executeMove({ pieceId: whiteKnight!.id, from: { x: 1, y: 7 }, to: { x: 2, y: 5 } }); // Nc3
+
+      const blackPawn = game.getBoard().getPieceAt({ x: 3, y: 1 });
+      game.executeMove({ pieceId: blackPawn!.id, from: { x: 3, y: 1 }, to: { x: 3, y: 2 } }); // d6
+
+      game.executeMove({ pieceId: whiteKnight!.id, from: { x: 2, y: 5 }, to: { x: 4, y: 4 } }); // Ne4
+
+      const blackPawn2 = game.getBoard().getPieceAt({ x: 4, y: 1 });
+      game.executeMove({ pieceId: blackPawn2!.id, from: { x: 4, y: 1 }, to: { x: 4, y: 2 } }); // e6
+
+      // Knight captures pawn at d6 (3,2)
+      const pawnToCapture = game.getBoard().getPieceAt({ x: 3, y: 2 });
+      const capturedPawnId = pawnToCapture!.id;
+
+      game.executeMove({ pieceId: whiteKnight!.id, from: { x: 4, y: 4 }, to: { x: 3, y: 2 } });
+
+      // Verify pawn is captured
+      expect(game.getBoard().getPiece(capturedPawnId)).toBeUndefined();
+
+      // Undo the capture
+      game.undoLastMove();
+
+      // Verify pawn is restored
+      const restoredPawn = game.getBoard().getPiece(capturedPawnId);
+      expect(restoredPawn).toBeDefined();
+      expect(restoredPawn!.position).toEqual({ x: 3, y: 2 });
+    });
+
+    it('getMoveHistoryLength returns correct count', () => {
+      expect(game.getMoveHistoryLength()).toBe(0);
+
+      const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: pawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+      expect(game.getMoveHistoryLength()).toBe(1);
+
+      game.undoLastMove();
+      expect(game.getMoveHistoryLength()).toBe(0);
+    });
+
+    it('clearHistory removes all history', () => {
+      const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: pawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+
+      const blackPawn = game.getBoard().getPieceAt({ x: 4, y: 1 });
+      game.executeMove({
+        pieceId: blackPawn!.id,
+        from: { x: 4, y: 1 },
+        to: { x: 4, y: 2 },
+      });
+
+      expect(game.getMoveHistoryLength()).toBe(2);
+
+      game.clearHistory();
+      expect(game.getMoveHistoryLength()).toBe(0);
+      expect(game.canUndo()).toBe(false);
+    });
+
+    it('calls onMoveRewound callback', () => {
+      const callback = vi.fn();
+      game.onMoveRewound = callback;
+
+      const pawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: pawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+
+      game.undoLastMove();
+
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith(expect.objectContaining({
+        move: expect.objectContaining({
+          pieceId: pawn!.id,
+          from: { x: 4, y: 6 },
+          to: { x: 4, y: 5 },
+        }),
+      }));
+    });
+
+    it('restores turn number correctly', () => {
+      const whitePawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: whitePawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+
+      const blackPawn = game.getBoard().getPieceAt({ x: 4, y: 1 });
+      game.executeMove({
+        pieceId: blackPawn!.id,
+        from: { x: 4, y: 1 },
+        to: { x: 4, y: 2 },
+      });
+
+      expect(game.getTurnNumber()).toBe(2);
+
+      game.undoLastMove(); // Undo black's move
+      expect(game.getTurnNumber()).toBe(1);
+
+      game.undoLastMove(); // Undo white's move
+      expect(game.getTurnNumber()).toBe(1);
+    });
+
+    it('can undo multiple moves in sequence', () => {
+      const whitePawn = game.getBoard().getPieceAt({ x: 4, y: 6 });
+      game.executeMove({
+        pieceId: whitePawn!.id,
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+      });
+
+      const blackPawn = game.getBoard().getPieceAt({ x: 4, y: 1 });
+      game.executeMove({
+        pieceId: blackPawn!.id,
+        from: { x: 4, y: 1 },
+        to: { x: 4, y: 2 },
+      });
+
+      // Undo both moves
+      game.undoLastMove();
+      game.undoLastMove();
+
+      // Board should be back to initial state
+      expect(game.getBoard().getPieceAt({ x: 4, y: 6 })).toBeDefined();
+      expect(game.getBoard().getPieceAt({ x: 4, y: 1 })).toBeDefined();
+      expect(game.getBoard().getPieceAt({ x: 4, y: 5 })).toBeUndefined();
+      expect(game.getBoard().getPieceAt({ x: 4, y: 2 })).toBeUndefined();
+      expect(game.getCurrentTurn()).toBe('white');
+    });
+  });
 });

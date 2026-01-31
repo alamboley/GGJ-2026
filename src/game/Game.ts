@@ -1,11 +1,12 @@
 import { Board } from './Board';
 import { getLegalMoves, getGameStatus, isLegalMove } from './pieces/MoveValidator';
-import type { GameState, PlayerColor, Move, ChessPiece, PieceType, GameStatus, Position } from '../types';
+import type { GameState, PlayerColor, Move, ChessPiece, PieceType, GameStatus, Position, MoveHistoryEntry } from '../types';
 
 type MoveCallback = (move: Move) => void;
 type CaptureCallback = (pieceId: string, pieceType: PieceType, pieceColor: PlayerColor) => void;
 type GameOverCallback = (status: GameStatus, winner: PlayerColor | null) => void;
 type TurnCallback = (turn: PlayerColor) => void;
+type RewindCallback = (entry: MoveHistoryEntry) => void;
 
 export class Game {
   private board: Board;
@@ -13,12 +14,14 @@ export class Game {
   private turnNumber: number = 1;
   private lastMove: Move | null = null;
   private gameStatus: GameStatus = 'playing';
+  private moveHistory: MoveHistoryEntry[] = [];
 
   // Event callbacks
   onPieceMoved: MoveCallback | null = null;
   onPieceCaptured: CaptureCallback | null = null;
   onGameOver: GameOverCallback | null = null;
   onTurnChanged: TurnCallback | null = null;
+  onMoveRewound: RewindCallback | null = null;
 
   constructor(boardSize: number = 8) {
     this.board = new Board(boardSize);
@@ -150,9 +153,21 @@ export class Game {
       return false;
     }
 
+    // Capture state BEFORE making changes (for history)
+    const previousHasMoved = piece.hasMoved;
+    const previousTurn = this.currentTurn;
+    const previousTurnNumber = this.turnNumber;
+    const previousGameStatus = this.gameStatus;
+
     // Handle capture
     const capturedPiece = this.board.getPieceAt(move.to);
+    let capturedPieceCopy: ChessPiece | null = null;
     if (capturedPiece) {
+      // Store full copy of captured piece for restoration
+      capturedPieceCopy = {
+        ...capturedPiece,
+        position: { ...capturedPiece.position },
+      };
       const capturedType = capturedPiece.type;
       const capturedColor = capturedPiece.color;
       this.board.removePiece(capturedPiece.id);
@@ -163,6 +178,17 @@ export class Game {
     // Move the piece
     this.board.movePiece(move.pieceId, move.to);
     this.lastMove = move;
+
+    // Store history entry
+    const historyEntry: MoveHistoryEntry = {
+      move: { ...move, from: { ...move.from }, to: { ...move.to } },
+      capturedPiece: capturedPieceCopy,
+      previousHasMoved,
+      previousTurn,
+      previousTurnNumber,
+      previousGameStatus,
+    };
+    this.moveHistory.push(historyEntry);
 
     // Fire move callback
     this.onPieceMoved?.(move);
@@ -195,5 +221,71 @@ export class Game {
 
   isGameOver(): boolean {
     return this.gameStatus === 'checkmate' || this.gameStatus === 'stalemate';
+  }
+
+  /**
+   * Undo the last move, restoring the previous game state
+   * @returns The history entry that was undone, or null if no moves to undo
+   */
+  undoLastMove(): MoveHistoryEntry | null {
+    const entry = this.moveHistory.pop();
+    if (!entry) return null;
+
+    const { move, capturedPiece, previousHasMoved, previousTurn, previousTurnNumber, previousGameStatus } = entry;
+
+    // Move the piece back to its original position (without setting hasMoved)
+    this.board.movePieceRaw(move.pieceId, move.from);
+
+    // Restore the hasMoved flag
+    const piece = this.board.getPiece(move.pieceId);
+    if (piece) {
+      piece.hasMoved = previousHasMoved;
+    }
+
+    // Restore captured piece if any
+    if (capturedPiece) {
+      this.board.addPiece({
+        ...capturedPiece,
+        position: { ...capturedPiece.position },
+      });
+    }
+
+    // Restore game state
+    this.currentTurn = previousTurn;
+    this.turnNumber = previousTurnNumber;
+    this.gameStatus = previousGameStatus;
+
+    // Update lastMove to previous move (if any)
+    if (this.moveHistory.length > 0) {
+      this.lastMove = this.moveHistory[this.moveHistory.length - 1].move;
+    } else {
+      this.lastMove = null;
+    }
+
+    // Fire rewind callback
+    this.onMoveRewound?.(entry);
+
+    return entry;
+  }
+
+  /**
+   * Check if there are moves that can be undone
+   */
+  canUndo(): boolean {
+    return this.moveHistory.length > 0;
+  }
+
+  /**
+   * Get the number of moves in history
+   */
+  getMoveHistoryLength(): number {
+    return this.moveHistory.length;
+  }
+
+  /**
+   * Clear move history (used on game reset)
+   */
+  clearHistory(): void {
+    this.moveHistory = [];
   }
 }

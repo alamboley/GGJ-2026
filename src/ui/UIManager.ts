@@ -8,6 +8,8 @@ export interface MoveInfo {
 
 export class UIManager {
   private container: HTMLElement;
+  private rewindCallback: (() => void) | null = null;
+  private rewindButton: HTMLButtonElement | null = null;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -36,6 +38,39 @@ export class UIManager {
     statusIndicator.id = 'status-indicator';
     statusIndicator.style.marginTop = '10px';
     uiContainer.appendChild(statusIndicator);
+
+    const rewindButton = document.createElement('button');
+    rewindButton.id = 'rewind-button';
+    rewindButton.textContent = 'Rewind';
+    rewindButton.style.cssText = `
+      margin-top: 10px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      pointer-events: auto;
+      opacity: 0.5;
+      transition: opacity 0.2s, background 0.2s;
+    `;
+    rewindButton.disabled = true;
+    rewindButton.addEventListener('click', () => {
+      if (this.rewindCallback && !rewindButton.disabled) {
+        this.rewindCallback();
+      }
+    });
+    rewindButton.addEventListener('mouseenter', () => {
+      if (!rewindButton.disabled) {
+        rewindButton.style.background = 'rgba(50, 50, 50, 0.9)';
+      }
+    });
+    rewindButton.addEventListener('mouseleave', () => {
+      rewindButton.style.background = 'rgba(0, 0, 0, 0.7)';
+    });
+    this.rewindButton = rewindButton;
+    uiContainer.appendChild(rewindButton);
 
     const moveLog = document.createElement('div');
     moveLog.id = 'move-log';
@@ -171,5 +206,43 @@ export class UIManager {
 
   private formatPieceType(type: PieceType): string {
     return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+
+  /**
+   * Set the callback for the rewind button
+   */
+  setRewindCallback(callback: () => void): void {
+    this.rewindCallback = callback;
+  }
+
+  /**
+   * Enable or disable the rewind button
+   */
+  setRewindEnabled(enabled: boolean): void {
+    if (this.rewindButton) {
+      this.rewindButton.disabled = !enabled;
+      this.rewindButton.style.opacity = enabled ? '1' : '0.5';
+      this.rewindButton.style.cursor = enabled ? 'pointer' : 'not-allowed';
+    }
+  }
+
+  /**
+   * Remove the game over overlay (used when rewinding after checkmate)
+   */
+  removeGameOverOverlay(): void {
+    const overlay = document.getElementById('game-over-overlay');
+    if (overlay) {
+      overlay.remove();
+    }
+  }
+
+  /**
+   * Clear the move log (used when rewinding)
+   */
+  clearMoveLog(): void {
+    const moveLog = document.getElementById('move-log');
+    if (moveLog) {
+      moveLog.innerHTML = '';
+    }
   }
 }

@@ -59,6 +59,17 @@ export class Board {
     return true;
   }
 
+  /**
+   * Move a piece without setting hasMoved flag (used for undo operations)
+   */
+  movePieceRaw(pieceId: string, newPosition: Position): boolean {
+    const piece = this.pieces.get(pieceId);
+    if (!piece) return false;
+
+    piece.position = { ...newPosition };
+    return true;
+  }
+
   isValidPosition(position: Position): boolean {
     return (
       position.x >= 0 &&

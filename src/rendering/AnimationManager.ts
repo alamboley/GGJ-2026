@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Position, Move, PlayerColor } from '../types';
+import type { Position, Move, PlayerColor, MoveHistoryEntry } from '../types';
 import type { Scene } from './Scene';
 
 interface ActiveAnimation {
@@ -162,59 +162,36 @@ export class AnimationManager {
       }
 
       const startPos = mesh.position.clone();
-      const startRotation = mesh.rotation.clone();
       const startScale = mesh.scale.clone();
 
       // Get target position on the edge
       const targetPos = this.scene.getCapturedPiecePosition(pieceColor);
 
-      // Target scale (90% of current)
-      const targetScale = startScale.clone().multiplyScalar(0.9);
+      // Target scale (81% of current = 0.9 * 0.9) - all scaling done in animation
+      const targetScale = startScale.clone().multiplyScalar(0.81);
 
       let elapsed = 0;
-
-      // First phase: dramatic fall (30% of animation)
-      // Second phase: float to captured area (70% of animation)
-      const fallDuration = duration * 0.3;
-      const floatDuration = duration * 0.7;
 
       const animation: ActiveAnimation = {
         update: (deltaTime: number) => {
           elapsed += deltaTime * 1000;
+          const t = Math.min(1, elapsed / duration);
+          const easedT = this.easeInOutCubic(t);
 
-          if (elapsed < fallDuration) {
-            // Phase 1: Fall backwards dramatically
-            const t = elapsed / fallDuration;
-            const easedT = this.easeOutQuad(t);
+          // Interpolate position with arc
+          const arcHeight = 2;
+          const arcT = Math.sin(easedT * Math.PI);
 
-            mesh.rotation.x = startRotation.x - easedT * (Math.PI / 4);
-            mesh.position.y = startPos.y - easedT * 0.3;
-          } else {
-            // Phase 2: Float to captured area
-            const floatElapsed = elapsed - fallDuration;
-            const t = Math.min(1, floatElapsed / floatDuration);
-            const easedT = this.easeInOutCubic(t);
+          mesh.position.x = startPos.x + (targetPos.x - startPos.x) * easedT;
+          mesh.position.z = startPos.z + (targetPos.z - startPos.z) * easedT;
+          mesh.position.y = startPos.y + (targetPos.y - startPos.y) * easedT + arcHeight * arcT;
 
-            // Interpolate position with arc
-            const arcHeight = 2;
-            const arcT = Math.sin(easedT * Math.PI);
-
-            mesh.position.x = startPos.x + (targetPos.x - startPos.x) * easedT;
-            mesh.position.z = startPos.z + (targetPos.z - startPos.z) * easedT;
-            mesh.position.y = (startPos.y - 0.3) + (targetPos.y - startPos.y + 0.3) * easedT + arcHeight * arcT;
-
-            // Gradually stand back up and scale down
-            mesh.rotation.x = (startRotation.x - Math.PI / 4) * (1 - easedT);
-            mesh.rotation.y = startRotation.y + easedT * Math.PI; // Turn around
-
-            // Interpolate scale
-            mesh.scale.lerpVectors(startScale, targetScale, easedT);
-          }
+          // Interpolate scale smoothly
+          mesh.scale.lerpVectors(startScale, targetScale, easedT);
 
           if (elapsed >= duration) {
             // Finalize position
             mesh.position.copy(targetPos);
-            mesh.rotation.set(0, 0, 0);
             mesh.scale.copy(targetScale);
 
             // Remove from piece meshes tracking (no longer on board)
@@ -316,9 +293,9 @@ export class AnimationManager {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-    // Create material with warm color
+    // Create material with blood red color
     const material = new THREE.PointsMaterial({
-      color: 0xffaa44,
+      color: 0x8b0000,
       size: 0.15,
       transparent: true,
       opacity: 1,
@@ -423,5 +400,123 @@ export class AnimationManager {
    */
   isAnimating(): boolean {
     return this.activeAnimations.length > 0;
+  }
+
+  /**
+   * Animate a piece moving back (rewind) - faster with ease-out
+   */
+  animateRewind(
+    pieceId: string,
+    from: Position,
+    to: Position,
+    duration: number = 400
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      const mesh = this.scene.getPieceMeshes().get(pieceId);
+      if (!mesh) {
+        resolve();
+        return;
+      }
+
+      const startPos = this.scene.boardToWorld(from);
+      const endPos = this.scene.boardToWorld(to);
+
+      // Lower arc for rewind animation
+      const distance = startPos.distanceTo(endPos);
+      const arcHeight = Math.min(1.5, 0.3 + distance * 0.2);
+
+      let elapsed = 0;
+
+      const animation: ActiveAnimation = {
+        update: (deltaTime: number) => {
+          elapsed += deltaTime * 1000;
+          const t = Math.min(1, elapsed / duration);
+          const easedT = this.easeOutQuad(t);
+
+          // Interpolate position
+          mesh.position.x = startPos.x + (endPos.x - startPos.x) * easedT;
+          mesh.position.z = startPos.z + (endPos.z - startPos.z) * easedT;
+
+          // Arc on Y axis
+          const arcT = Math.sin(easedT * Math.PI);
+          mesh.position.y = startPos.y + arcHeight * arcT;
+
+          if (t >= 1) {
+            mesh.position.copy(endPos);
+            resolve();
+            return true;
+          }
+          return false;
+        },
+      };
+
+      this.activeAnimations.push(animation);
+    });
+  }
+
+  /**
+   * Animate a restored piece appearing on the board (from captured area)
+   */
+  animateRestorePiece(
+    mesh: THREE.Object3D,
+    targetPosition: Position,
+    duration: number = 500
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      const startPos = mesh.position.clone();
+      const endPos = this.scene.boardToWorld(targetPosition);
+
+      // Restore scale to original (1.5) - pieces are created at scale 1.5
+      // Captured pieces were scaled down: 1.5 * 0.9 * 0.9 = 1.215
+      const startScale = mesh.scale.clone();
+      const originalScale = new THREE.Vector3(1.5, 1.5, 1.5);
+
+      let elapsed = 0;
+
+      const animation: ActiveAnimation = {
+        update: (deltaTime: number) => {
+          elapsed += deltaTime * 1000;
+          const t = Math.min(1, elapsed / duration);
+          const easedT = this.easeInOutCubic(t);
+
+          // Interpolate position with arc
+          const arcHeight = 2;
+          const arcT = Math.sin(easedT * Math.PI);
+
+          mesh.position.x = startPos.x + (endPos.x - startPos.x) * easedT;
+          mesh.position.z = startPos.z + (endPos.z - startPos.z) * easedT;
+          mesh.position.y = startPos.y + (endPos.y - startPos.y) * easedT + arcHeight * arcT;
+
+          // Interpolate scale back to original size
+          mesh.scale.lerpVectors(startScale, originalScale, easedT);
+
+          if (t >= 1) {
+            mesh.position.copy(endPos);
+            mesh.scale.copy(originalScale);
+            resolve();
+            return true;
+          }
+          return false;
+        },
+      };
+
+      this.activeAnimations.push(animation);
+    });
+  }
+
+  /**
+   * Play the full rewind sequence for a move
+   */
+  async playRewindSequence(
+    entry: MoveHistoryEntry,
+    restoredMesh?: THREE.Object3D
+  ): Promise<void> {
+    // If there was a captured piece, restore it first
+    if (restoredMesh && entry.capturedPiece) {
+      await this.animateRestorePiece(restoredMesh, entry.capturedPiece.position, 400);
+    }
+
+    // Then animate the piece moving back
+    await this.animateRewind(entry.move.pieceId, entry.move.to, entry.move.from, 400);
   }
 }

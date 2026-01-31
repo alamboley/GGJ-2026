@@ -33,3 +33,12 @@ export interface GameState {
   lastMove: Move | null;
   gameStatus: GameStatus;
 }
+
+export interface MoveHistoryEntry {
+  move: Move;
+  capturedPiece: ChessPiece | null;  // Full piece data for restoration
+  previousHasMoved: boolean;          // Moving piece's hasMoved before move
+  previousTurn: PlayerColor;
+  previousTurnNumber: number;
+  previousGameStatus: GameStatus;
+}

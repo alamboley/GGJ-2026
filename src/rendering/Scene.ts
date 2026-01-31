@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { Position } from '../types';
+import type { Position, PlayerColor } from '../types';
 import type { AnimationManager } from './AnimationManager';
 import { LightingSystem } from './LightingSystem';
 import { HighlightSystem } from './HighlightSystem';
@@ -289,8 +289,7 @@ export class Scene {
   addCapturedPiece(mesh: THREE.Object3D, color: 'white' | 'black'): void {
     const capturedList = color === 'white' ? this.capturedWhitePieces : this.capturedBlackPieces;
 
-    // Scale down the captured piece slightly
-    mesh.scale.multiplyScalar(0.9);
+    // Scale is already animated in animateToCapture - no instant scaling needed
 
     // Reset rotation
     mesh.rotation.set(0, 0, 0);
@@ -309,6 +308,49 @@ export class Scene {
     });
 
     capturedList.push(mesh);
+  }
+
+  /**
+   * Remove a captured piece from the captured area and return it for restoration
+   * @param pieceId The ID of the piece to restore
+   * @param color The color of the piece (determines which captured list to search)
+   * @returns The mesh if found, or null
+   */
+  restoreCapturedPiece(pieceId: string, color: PlayerColor): THREE.Object3D | null {
+    const capturedList = color === 'white' ? this.capturedWhitePieces : this.capturedBlackPieces;
+
+    // Find the mesh by pieceId
+    const index = capturedList.findIndex((mesh) => mesh.userData.pieceId === pieceId);
+    if (index === -1) return null;
+
+    // Remove from captured list
+    const mesh = capturedList.splice(index, 1)[0];
+
+    // Reposition remaining captured pieces to fill the gap
+    this.repositionCapturedPieces(color);
+
+    // Add back to piece meshes tracking
+    this.pieceMeshes.set(pieceId, mesh);
+
+    return mesh;
+  }
+
+  /**
+   * Reposition remaining captured pieces after one is restored
+   */
+  repositionCapturedPieces(color: PlayerColor): void {
+    const capturedList = color === 'white' ? this.capturedWhitePieces : this.capturedBlackPieces;
+    const halfBoard = this.boardSize / 2;
+
+    capturedList.forEach((mesh, index) => {
+      const row = Math.floor(index / 8);
+      const col = index % 8;
+
+      const xOffset = color === 'white' ? -halfBoard - 1.5 - row * 0.8 : halfBoard + 1.5 + row * 0.8;
+      const zPos = -halfBoard + col * 1.2 + 0.6;
+
+      mesh.position.set(xOffset, 0.6, zPos);
+    });
   }
 
   // Delegate to HighlightSystem
