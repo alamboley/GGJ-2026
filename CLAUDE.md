@@ -35,11 +35,36 @@ This is not standard chess. Key rule differences:
 - `game.setupInitialPosition()` - Random battlefield placement (default)
 - `game.setupClassicPosition()` - Traditional chess layout (for testing)
 
+## Game Features
+
+### Enemy Masking
+- Enemy pieces appear as masked/obscured models
+- Player must deduce piece types by observing movement patterns
+- Captured enemy pieces are revealed
+- Toggle button to show/hide masks (for debugging/testing)
+
+### Rewind System
+- Players can undo their last move (reverts both player and AI moves)
+- Animated piece movement reversal
+- Limited to one rewind per turn
+
+### Interactive Minimap
+- 2D board overview in top-right corner
+- Shows all friendly pieces and masked enemies
+- Click to select pieces or make moves
+- Highlights valid moves and check status
+
+### Configurable Game Settings
+- Board size: 8x8 to 16x16 (default: 12x12)
+- Pawns per player: 0 to 12 (default: 8)
+- Live density calculation prevents invalid configurations
+
 ## Technology Stack
 
 - **Language**: TypeScript
 - **Build Tool**: Vite
 - **3D Rendering**: Three.js
+- **UI Framework**: React 19
 - **Game Mode**: Single Player vs AI
 
 ## Build Commands
@@ -83,18 +108,34 @@ tests/
 
 ```
 src/
-├── main.ts              # Entry point
+├── main.tsx                 # React entry point & game orchestrator
 ├── game/
-│   ├── Game.ts          # Main game controller
-│   ├── Board.ts         # Chess board logic
-│   └── pieces/          # Chess piece classes
+│   ├── Game.ts              # Main game controller (turn logic, win conditions)
+│   ├── Board.ts             # Chess board state and piece management
+│   ├── InputHandler.ts      # Mouse input, raycasting, piece selection
+│   ├── RewindManager.ts     # Undo/rewind last move functionality
+│   └── pieces/
+│       ├── index.ts         # Piece class definitions
+│       ├── MovementRules.ts # Legal move generation per piece type
+│       └── MoveValidator.ts # Check/checkmate/stalemate validation
 ├── ai/
-│   └── AIPlayer.ts      # AI opponent logic
+│   └── AIPlayer.ts          # AI opponent (minimax with evaluation)
 ├── rendering/
-│   ├── Scene.ts         # Three.js scene setup
-│   └── models/          # 3D models/meshes
+│   ├── Scene.ts             # Three.js scene, camera, render loop
+│   ├── AnimationManager.ts  # Piece movement & capture animations
+│   ├── HighlightSystem.ts   # Valid move & selection highlights
+│   ├── LightingSystem.ts    # Scene lighting & check indicator
+│   └── models/
+│       ├── index.ts         # Model exports
+│       └── PieceFactory.ts  # 3D model loading & mask effects
+├── ui/
+│   ├── MainMenu.tsx         # Start screen with game rules
+│   ├── GameSettings.tsx     # Board size & pawn count config
+│   ├── UIManager.ts         # In-game HUD (turn, moves, buttons)
+│   ├── MinimapManager.ts    # 2D board overview with interaction
+│   └── SettingsManager.ts   # Settings panel controller
 └── types/
-    └── index.ts         # TypeScript interfaces
+    └── index.ts             # TypeScript interfaces
 ```
 
 When implementing new feature, update the test and run them.
