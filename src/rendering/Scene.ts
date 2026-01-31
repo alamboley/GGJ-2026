@@ -290,9 +290,7 @@ export class Scene {
     const capturedList = color === 'white' ? this.capturedWhitePieces : this.capturedBlackPieces;
 
     // Scale is already animated in animateToCapture - no instant scaling needed
-
-    // Reset rotation
-    mesh.rotation.set(0, 0, 0);
+    // Rotation is handled by render loop (face camera) - no reset needed
 
     // Get position and update mesh
     const pos = this.getCapturedPiecePosition(color);
@@ -424,6 +422,17 @@ export class Scene {
       if (skyDome && skyDome.material instanceof THREE.ShaderMaterial) {
         skyDome.material.uniforms.time.value = elapsedTime;
       }
+
+      // Make pieces face the camera (Y-axis rotation only)
+      const cameraPos = this.camera.position;
+      const rotateToCam = (mesh: THREE.Object3D) => {
+        const dx = cameraPos.x - mesh.position.x;
+        const dz = cameraPos.z - mesh.position.z;
+        mesh.rotation.y = Math.atan2(dx, dz);
+      };
+      this.pieceMeshes.forEach(rotateToCam);
+      this.capturedWhitePieces.forEach(rotateToCam);
+      this.capturedBlackPieces.forEach(rotateToCam);
 
       // Update animation manager if present
       if (this.animationManager) {
