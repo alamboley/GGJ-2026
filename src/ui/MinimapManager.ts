@@ -22,6 +22,9 @@ export class MinimapManager {
   private selectedPieceId: string | null = null;
   private validMoves: Move[] = [];
 
+  // Mask state - when true, enemy piece letters are hidden
+  private masksEnabled: boolean = true;
+
   constructor(container: HTMLElement, game: Game, inputHandler: InputHandler) {
     this.game = game;
     this.inputHandler = inputHandler;
@@ -154,25 +157,44 @@ export class MinimapManager {
       // Highlight selected piece with glow
       const isSelected = piece.id === this.selectedPieceId;
 
+      // Check if this is a masked enemy piece
+      const isEnemyMasked = piece.color === 'black' && this.masksEnabled;
+
       // Draw piece background circle
       ctx.beginPath();
       ctx.arc(x, y, cellSize * 0.4, 0, Math.PI * 2);
-      ctx.fillStyle = piece.color === 'white' ? '#4fc3f7' : '#ff6b6b';
+
+      if (isEnemyMasked) {
+        // Shadowy dark color for masked enemies
+        ctx.fillStyle = '#2a1a3a';
+      } else {
+        ctx.fillStyle = piece.color === 'white' ? '#4fc3f7' : '#ff6b6b';
+      }
       ctx.fill();
 
       if (isSelected) {
         ctx.strokeStyle = '#ffff00';
         ctx.lineWidth = 3;
+      } else if (isEnemyMasked) {
+        ctx.strokeStyle = '#4a2a5a';
+        ctx.lineWidth = 1.5;
       } else {
         ctx.strokeStyle = piece.color === 'white' ? '#0288d1' : '#c62828';
         ctx.lineWidth = 1.5;
       }
       ctx.stroke();
 
-      // Draw piece symbol
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${cellSize * 0.5}px Arial`;
-      ctx.fillText(PIECE_SYMBOLS[piece.type], x, y + 1);
+      // Draw piece symbol (hide for masked enemies)
+      if (!isEnemyMasked) {
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${cellSize * 0.5}px Arial`;
+        ctx.fillText(PIECE_SYMBOLS[piece.type], x, y + 1);
+      } else {
+        // Draw a question mark or nothing for masked enemies
+        ctx.fillStyle = 'rgba(100, 50, 130, 0.8)';
+        ctx.font = `bold ${cellSize * 0.5}px Arial`;
+        ctx.fillText('?', x, y + 1);
+      }
     }
 
     // Draw grid lines
@@ -210,6 +232,14 @@ export class MinimapManager {
     // Also clear 3D view
     this.inputHandler.clearSelectionExternal();
 
+    this.update();
+  }
+
+  /**
+   * Set whether enemy pieces should be masked (hidden identity)
+   */
+  setMasksEnabled(enabled: boolean): void {
+    this.masksEnabled = enabled;
     this.update();
   }
 

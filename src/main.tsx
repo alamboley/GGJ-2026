@@ -66,6 +66,9 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
     await pieceFactoryRef.loadModels();
   }
 
+  // Set piece factory on scene for masking
+  scene.setPieceFactory(pieceFactoryRef);
+
   // Setup initial position
   game.setupInitialPosition();
 
@@ -73,6 +76,11 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
   for (const piece of game.getBoard().getAllPieces()) {
     const mesh = pieceFactoryRef.createPieceMesh(piece.type, piece.color);
     scene.addPieceMesh(piece.id, mesh, piece.position);
+
+    // Mask enemy pieces (black) so player can't see what they are
+    if (piece.color === 'black') {
+      scene.maskPiece(piece.id);
+    }
   }
 
   // Wire game events to scene
@@ -124,6 +132,10 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
     pendingCaptureId = pieceId;
     pendingCaptureColor = pieceColor;
     lastCapturedPiece = { type: pieceType, color: pieceColor };
+
+    // Remove the fog mask when an enemy piece is captured (reveal what it was)
+    scene.unmaskPiece(pieceId);
+
     minimapManagerRef?.update();
   };
 
@@ -180,6 +192,28 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
   // Create Minimap manager
   minimapManagerRef = new MinimapManager(containerRef, game, inputHandler);
   minimapManagerRef.update();
+
+  // Set up mask toggle callback
+  const enemyPieceIds = game.getBoard().getAllPieces()
+    .filter(p => p.color === 'black')
+    .map(p => p.id);
+
+  uiManagerRef.setMaskToggleCallback((enabled: boolean) => {
+    if (enabled) {
+      // Re-mask all enemy pieces that still exist
+      for (const pieceId of enemyPieceIds) {
+        const piece = game.getBoard().getPiece(pieceId);
+        if (piece && !scene.isPieceMasked(pieceId)) {
+          scene.maskPiece(pieceId);
+        }
+      }
+    } else {
+      // Unmask all pieces
+      scene.unmaskAllPieces();
+    }
+    // Update minimap
+    minimapManagerRef?.setMasksEnabled(enabled);
+  });
 
   // Create RewindManager (handles all rewind orchestration)
   rewindManagerRef = new RewindManager({

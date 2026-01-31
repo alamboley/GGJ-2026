@@ -10,6 +10,8 @@ export class UIManager {
   private container: HTMLElement;
   private rewindCallback: (() => void) | null = null;
   private rewindButton: HTMLButtonElement | null = null;
+  private maskToggleCallback: ((enabled: boolean) => void) | null = null;
+  private masksEnabled: boolean = true;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -71,6 +73,45 @@ export class UIManager {
     });
     this.rewindButton = rewindButton;
     uiContainer.appendChild(rewindButton);
+
+    // Mask toggle button
+    const maskToggleButton = document.createElement('button');
+    maskToggleButton.id = 'mask-toggle-button';
+    maskToggleButton.textContent = 'Mask: ON';
+    maskToggleButton.style.cssText = `
+      margin-top: 10px;
+      margin-left: 10px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      background: rgba(75, 0, 130, 0.7);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      pointer-events: auto;
+      transition: background 0.2s;
+    `;
+    maskToggleButton.addEventListener('click', () => {
+      this.masksEnabled = !this.masksEnabled;
+      maskToggleButton.textContent = this.masksEnabled ? 'Mask: ON' : 'Mask: OFF';
+      maskToggleButton.style.background = this.masksEnabled
+        ? 'rgba(75, 0, 130, 0.7)'
+        : 'rgba(50, 50, 50, 0.7)';
+      if (this.maskToggleCallback) {
+        this.maskToggleCallback(this.masksEnabled);
+      }
+    });
+    maskToggleButton.addEventListener('mouseenter', () => {
+      maskToggleButton.style.background = this.masksEnabled
+        ? 'rgba(100, 0, 180, 0.9)'
+        : 'rgba(70, 70, 70, 0.9)';
+    });
+    maskToggleButton.addEventListener('mouseleave', () => {
+      maskToggleButton.style.background = this.masksEnabled
+        ? 'rgba(75, 0, 130, 0.7)'
+        : 'rgba(50, 50, 50, 0.7)';
+    });
+    uiContainer.appendChild(maskToggleButton);
 
     const moveLog = document.createElement('div');
     moveLog.id = 'move-log';
@@ -213,6 +254,20 @@ export class UIManager {
    */
   setRewindCallback(callback: () => void): void {
     this.rewindCallback = callback;
+  }
+
+  /**
+   * Set the callback for the mask toggle button
+   */
+  setMaskToggleCallback(callback: (enabled: boolean) => void): void {
+    this.maskToggleCallback = callback;
+  }
+
+  /**
+   * Get current mask state
+   */
+  isMasksEnabled(): boolean {
+    return this.masksEnabled;
   }
 
   /**

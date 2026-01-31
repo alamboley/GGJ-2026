@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { Position, PlayerColor } from '../types';
 import type { AnimationManager } from './AnimationManager';
+import type { PieceFactory } from './models/PieceFactory';
 import { LightingSystem } from './LightingSystem';
 import { HighlightSystem } from './HighlightSystem';
 
@@ -19,6 +20,10 @@ export class Scene {
   // Extracted systems
   private lightingSystem: LightingSystem;
   private highlightSystem: HighlightSystem;
+
+  // Enemy piece masking
+  private pieceMasks: Map<string, THREE.Group> = new Map(); // pieceId -> mask group
+  private pieceFactory: PieceFactory | null = null;
 
   // Captured pieces display
   private capturedWhitePieces: THREE.Object3D[] = []; // White pieces captured by black
@@ -258,6 +263,9 @@ export class Scene {
   }
 
   removePieceMesh(pieceId: string): void {
+    // Remove mask if present
+    this.unmaskPiece(pieceId);
+
     const mesh = this.pieceMeshes.get(pieceId);
     if (mesh) {
       this.scene.remove(mesh);
@@ -408,6 +416,93 @@ export class Scene {
     this.animationManager = manager;
   }
 
+  setPieceFactory(factory: PieceFactory): void {
+    this.pieceFactory = factory;
+  }
+
+  /**
+   * Add a shadowy mask to hide an enemy piece's identity
+   */
+  maskPiece(pieceId: string): void {
+    if (!this.pieceFactory) {
+      console.warn('PieceFactory not set, cannot create mask');
+      return;
+    }
+
+    const pieceMesh = this.pieceMeshes.get(pieceId);
+    if (!pieceMesh) return;
+
+    // Don't mask if already masked
+    if (this.pieceMasks.has(pieceId)) return;
+
+    // Hide the actual 3D piece model
+    pieceMesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.name !== 'pieceMask' && child.name !== 'maskCore') {
+        child.visible = false;
+      }
+    });
+
+    const mask = this.pieceFactory.createMaskMesh();
+    pieceMesh.add(mask);
+    this.pieceMasks.set(pieceId, mask);
+  }
+
+  /**
+   * Remove the mask from a piece (reveal its identity)
+   */
+  unmaskPiece(pieceId: string): void {
+    const mask = this.pieceMasks.get(pieceId);
+    if (!mask) return;
+
+    const pieceMesh = this.pieceMeshes.get(pieceId);
+    if (pieceMesh) {
+      pieceMesh.remove(mask);
+
+      // Show the actual 3D piece model again
+      pieceMesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.visible = true;
+        }
+      });
+    }
+
+    // Dispose mask resources (it's a group with particles and core)
+    mask.traverse((child) => {
+      if (child instanceof THREE.Points || child instanceof THREE.Mesh) {
+        child.geometry?.dispose();
+        if (child.material instanceof THREE.Material) {
+          child.material.dispose();
+        }
+      }
+    });
+
+    this.pieceMasks.delete(pieceId);
+  }
+
+  /**
+   * Check if a piece is currently masked
+   */
+  isPieceMasked(pieceId: string): boolean {
+    return this.pieceMasks.has(pieceId);
+  }
+
+  /**
+   * Get all currently masked piece IDs
+   */
+  getMaskedPieceIds(): string[] {
+    return Array.from(this.pieceMasks.keys());
+  }
+
+  /**
+   * Unmask all pieces
+   */
+  unmaskAllPieces(): void {
+    const pieceIds = this.getMaskedPieceIds();
+    for (const pieceId of pieceIds) {
+      this.unmaskPiece(pieceId);
+    }
+  }
+
   render(): void {
     this.renderer.render(this.scene, this.camera);
   }
@@ -426,6 +521,18 @@ export class Scene {
       if (skyDome && skyDome.material instanceof THREE.ShaderMaterial) {
         skyDome.material.uniforms.time.value = elapsedTime;
       }
+
+      // Update mask particle shader time uniforms for animated fire effect
+      this.pieceMasks.forEach((maskGroup) => {
+        maskGroup.traverse((child) => {
+          if (child instanceof THREE.Points) {
+            const material = child.material as THREE.ShaderMaterial;
+            if (material.uniforms?.time) {
+              material.uniforms.time.value = elapsedTime;
+            }
+          }
+        });
+      });
 
       // Make pieces face the camera (Y-axis rotation only)
       const cameraPos = this.camera.position;
@@ -461,6 +568,12 @@ export class Scene {
       window.removeEventListener('resize', this.resizeHandler);
       this.resizeHandler = null;
     }
+
+    // Dispose all piece masks
+    this.pieceMasks.forEach((_, pieceId) => {
+      this.unmaskPiece(pieceId);
+    });
+    this.pieceMasks.clear();
 
     // Dispose all piece meshes
     this.pieceMeshes.forEach((mesh) => {
