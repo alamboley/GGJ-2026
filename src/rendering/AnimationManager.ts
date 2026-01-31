@@ -6,6 +6,12 @@ interface ActiveAnimation {
   update: (deltaTime: number) => boolean; // Returns true when complete
 }
 
+export interface MoveAnimationOptions {
+  duration?: number;
+  arcHeightMultiplier?: number;
+  easing?: 'inOutCubic' | 'outQuad';
+}
+
 export class AnimationManager {
   private scene: Scene;
   private activeAnimations: ActiveAnimation[] = [];
@@ -43,8 +49,14 @@ export class AnimationManager {
     pieceId: string,
     from: Position,
     to: Position,
-    duration: number = 600
+    options: MoveAnimationOptions = {}
   ): Promise<void> {
+    const {
+      duration = 600,
+      arcHeightMultiplier = 1.0,
+      easing = 'inOutCubic',
+    } = options;
+
     return new Promise((resolve) => {
       const mesh = this.scene.getPieceMeshes().get(pieceId);
       if (!mesh) {
@@ -55,9 +67,13 @@ export class AnimationManager {
       const startPos = this.scene.boardToWorld(from);
       const endPos = this.scene.boardToWorld(to);
 
-      // Calculate arc height based on distance
+      // Calculate arc height based on distance, scaled by multiplier
       const distance = startPos.distanceTo(endPos);
-      const arcHeight = Math.min(2, 0.5 + distance * 0.3);
+      const baseArcHeight = Math.min(2, 0.5 + distance * 0.3);
+      const arcHeight = baseArcHeight * arcHeightMultiplier;
+
+      const easingFn =
+        easing === 'outQuad' ? this.easeOutQuad.bind(this) : this.easeInOutCubic.bind(this);
 
       let elapsed = 0;
 
@@ -65,7 +81,7 @@ export class AnimationManager {
         update: (deltaTime: number) => {
           elapsed += deltaTime * 1000; // Convert to ms
           const t = Math.min(1, elapsed / duration);
-          const easedT = this.easeInOutCubic(t);
+          const easedT = easingFn(t);
 
           // Interpolate position
           mesh.position.x = startPos.x + (endPos.x - startPos.x) * easedT;
@@ -374,7 +390,7 @@ export class AnimationManager {
     capturedPieceColor?: PlayerColor
   ): Promise<void> {
     // 1. Animate AI piece moving
-    await this.animatePieceMove(move.pieceId, move.from, move.to, 600);
+    await this.animatePieceMove(move.pieceId, move.from, move.to, { duration: 600 });
 
     // 2. Impact effects (shake + particles happen together)
     this.createImpactParticles(move.to, 800);
@@ -392,7 +408,7 @@ export class AnimationManager {
    * Play simple move animation (no capture)
    */
   async playMoveSequence(move: Move): Promise<void> {
-    await this.animatePieceMove(move.pieceId, move.from, move.to, 600);
+    await this.animatePieceMove(move.pieceId, move.from, move.to, { duration: 600 });
   }
 
   /**
@@ -400,58 +416,6 @@ export class AnimationManager {
    */
   isAnimating(): boolean {
     return this.activeAnimations.length > 0;
-  }
-
-  /**
-   * Animate a piece moving back (rewind) - faster with ease-out
-   */
-  animateRewind(
-    pieceId: string,
-    from: Position,
-    to: Position,
-    duration: number = 400
-  ): Promise<void> {
-    return new Promise((resolve) => {
-      const mesh = this.scene.getPieceMeshes().get(pieceId);
-      if (!mesh) {
-        resolve();
-        return;
-      }
-
-      const startPos = this.scene.boardToWorld(from);
-      const endPos = this.scene.boardToWorld(to);
-
-      // Lower arc for rewind animation
-      const distance = startPos.distanceTo(endPos);
-      const arcHeight = Math.min(1.5, 0.3 + distance * 0.2);
-
-      let elapsed = 0;
-
-      const animation: ActiveAnimation = {
-        update: (deltaTime: number) => {
-          elapsed += deltaTime * 1000;
-          const t = Math.min(1, elapsed / duration);
-          const easedT = this.easeOutQuad(t);
-
-          // Interpolate position
-          mesh.position.x = startPos.x + (endPos.x - startPos.x) * easedT;
-          mesh.position.z = startPos.z + (endPos.z - startPos.z) * easedT;
-
-          // Arc on Y axis
-          const arcT = Math.sin(easedT * Math.PI);
-          mesh.position.y = startPos.y + arcHeight * arcT;
-
-          if (t >= 1) {
-            mesh.position.copy(endPos);
-            resolve();
-            return true;
-          }
-          return false;
-        },
-      };
-
-      this.activeAnimations.push(animation);
-    });
   }
 
   /**
@@ -516,7 +480,11 @@ export class AnimationManager {
       await this.animateRestorePiece(restoredMesh, entry.capturedPiece.position, 400);
     }
 
-    // Then animate the piece moving back
-    await this.animateRewind(entry.move.pieceId, entry.move.to, entry.move.from, 400);
+    // Then animate the piece moving back with rewind options (faster, lower arc, ease-out)
+    await this.animatePieceMove(entry.move.pieceId, entry.move.to, entry.move.from, {
+      duration: 400,
+      arcHeightMultiplier: 0.6,
+      easing: 'outQuad',
+    });
   }
 }
