@@ -20,7 +20,7 @@ export class PieceFactory {
       metalness: 0.0,
     });
     this.blackMaterial = new THREE.MeshStandardMaterial({
-      color: 0x222222,
+      color: 0x999999,
       roughness: 0.5,
       metalness: 0.0,
     });
@@ -55,7 +55,7 @@ export class PieceFactory {
     const clone = cachedModel.clone(true);
 
     // Create a fresh material for this piece
-    const materialColor = color === 'white' ? 0xffffff : 0x666666;
+    const materialColor = color === 'white' ? 0xffffff : 0x999999;
 
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {

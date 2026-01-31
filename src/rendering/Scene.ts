@@ -214,8 +214,9 @@ export class Scene {
     }
 
     // Row labels (1-16) along the left edge (negative X)
+    // Row 1 at front (positive Z), row boardSize at back (negative Z)
     for (let z = 0; z < this.boardSize; z++) {
-      const label = String(z + 1);
+      const label = String(this.boardSize - z);
       const sprite = this.createTextSprite(label);
       sprite.position.set(
         -halfBoard - 0.7,

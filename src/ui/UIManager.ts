@@ -8,6 +8,7 @@ export interface MoveInfo {
 
 export class UIManager {
   private container: HTMLElement;
+  private boardSize: number;
   private rewindCallback: (() => void) | null = null;
   private rewindButton: HTMLButtonElement | null = null;
   private maskToggleCallback: ((enabled: boolean) => void) | null = null;
@@ -15,8 +16,9 @@ export class UIManager {
   private exitCallback: (() => void) | null = null;
   private masksEnabled: boolean = true;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, boardSize: number = 12) {
     this.container = container;
+    this.boardSize = boardSize;
     this.createUI();
   }
 
@@ -313,7 +315,7 @@ export class UIManager {
 
   private formatPosition(x: number, y: number): string {
     const col = String.fromCharCode(65 + x); // A, B, C, etc.
-    const row = y + 1;
+    const row = this.boardSize - y; // Row 1 at front (high y), row boardSize at back (y=0)
     return `${col}${row}`;
   }
 

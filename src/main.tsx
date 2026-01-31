@@ -197,7 +197,7 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
   sceneRef = scene;
 
   // Create UI manager
-  uiManagerRef = new UIManager(containerRef);
+  uiManagerRef = new UIManager(containerRef, config.boardSize);
   uiManagerRef.updateTurnIndicator('white', game.getGameStatus());
 
   // Create Minimap manager

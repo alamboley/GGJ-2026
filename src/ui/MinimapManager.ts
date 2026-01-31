@@ -25,6 +25,9 @@ export class MinimapManager {
   // Mask state - when true, enemy piece letters are hidden
   private masksEnabled: boolean = true;
 
+  // Label margin for row numbers and column letters
+  private readonly labelMargin = 16;
+
   constructor(container: HTMLElement, game: Game, inputHandler: InputHandler) {
     this.game = game;
     this.inputHandler = inputHandler;
@@ -73,9 +76,10 @@ export class MinimapManager {
     this.canvas = document.createElement('canvas');
     const boardSize = this.game.getBoard().getSize();
     const cellSize = 20; // 20px per cell
-    const size = boardSize * cellSize;
-    this.canvas.width = size;
-    this.canvas.height = size;
+    const boardPixelSize = boardSize * cellSize;
+    // Add margin for labels: left for numbers, bottom for letters
+    this.canvas.width = boardPixelSize + this.labelMargin;
+    this.canvas.height = boardPixelSize + this.labelMargin;
     this.canvas.style.cssText = `
       border: 2px solid #444;
       border-radius: 4px;
@@ -99,8 +103,11 @@ export class MinimapManager {
 
   update(): void {
     const boardSize = this.game.getBoard().getSize();
-    const cellSize = this.canvas.width / boardSize;
+    const boardPixelSize = this.canvas.width - this.labelMargin;
+    const cellSize = boardPixelSize / boardSize;
     const ctx = this.ctx;
+    const offsetX = this.labelMargin; // Left margin for row numbers
+    const offsetY = 0; // Top of board
 
     // Clear canvas
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -110,7 +117,7 @@ export class MinimapManager {
       for (let y = 0; y < boardSize; y++) {
         const isLight = (x + y) % 2 === 0;
         ctx.fillStyle = isLight ? '#d4c4a8' : '#8b7355';
-        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        ctx.fillRect(offsetX + x * cellSize, offsetY + y * cellSize, cellSize, cellSize);
       }
     }
 
@@ -119,8 +126,8 @@ export class MinimapManager {
     if (isKingInCheck(currentTurn, this.game.getBoard())) {
       const king = this.game.getBoard().findPiece('king', currentTurn);
       if (king) {
-        const x = king.position.x * cellSize;
-        const y = king.position.y * cellSize;
+        const x = offsetX + king.position.x * cellSize;
+        const y = offsetY + king.position.y * cellSize;
         ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
         ctx.fillRect(x, y, cellSize, cellSize);
       }
@@ -128,8 +135,8 @@ export class MinimapManager {
 
     // Draw valid move highlights
     for (const move of this.validMoves) {
-      const x = move.to.x * cellSize;
-      const y = move.to.y * cellSize;
+      const x = offsetX + move.to.x * cellSize;
+      const y = offsetY + move.to.y * cellSize;
       ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
       ctx.fillRect(x, y, cellSize, cellSize);
     }
@@ -138,8 +145,8 @@ export class MinimapManager {
     if (this.selectedPieceId) {
       const selectedPiece = this.game.getBoard().getPiece(this.selectedPieceId);
       if (selectedPiece) {
-        const x = selectedPiece.position.x * cellSize;
-        const y = selectedPiece.position.y * cellSize;
+        const x = offsetX + selectedPiece.position.x * cellSize;
+        const y = offsetY + selectedPiece.position.y * cellSize;
         ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
         ctx.fillRect(x, y, cellSize, cellSize);
       }
@@ -151,8 +158,8 @@ export class MinimapManager {
     ctx.textBaseline = 'middle';
 
     for (const piece of pieces) {
-      const x = piece.position.x * cellSize + cellSize / 2;
-      const y = piece.position.y * cellSize + cellSize / 2;
+      const x = offsetX + piece.position.x * cellSize + cellSize / 2;
+      const y = offsetY + piece.position.y * cellSize + cellSize / 2;
 
       // Highlight selected piece with glow
       const isSelected = piece.id === this.selectedPieceId;
@@ -202,13 +209,35 @@ export class MinimapManager {
     ctx.lineWidth = 0.5;
     for (let i = 0; i <= boardSize; i++) {
       ctx.beginPath();
-      ctx.moveTo(i * cellSize, 0);
-      ctx.lineTo(i * cellSize, this.canvas.height);
+      ctx.moveTo(offsetX + i * cellSize, offsetY);
+      ctx.lineTo(offsetX + i * cellSize, offsetY + boardPixelSize);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(0, i * cellSize);
-      ctx.lineTo(this.canvas.width, i * cellSize);
+      ctx.moveTo(offsetX, offsetY + i * cellSize);
+      ctx.lineTo(offsetX + boardPixelSize, offsetY + i * cellSize);
       ctx.stroke();
+    }
+
+    // Draw column letters (A, B, C, ...) at the bottom
+    ctx.fillStyle = '#aaa';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    for (let x = 0; x < boardSize; x++) {
+      const letter = String.fromCharCode(65 + x); // A=65
+      const labelX = offsetX + x * cellSize + cellSize / 2;
+      const labelY = offsetY + boardPixelSize + 3;
+      ctx.fillText(letter, labelX, labelY);
+    }
+
+    // Draw row numbers (1, 2, 3, ...) on the left - from bottom to top like chess
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let y = 0; y < boardSize; y++) {
+      const rowNumber = boardSize - y; // Bottom row = 1, top row = boardSize
+      const labelX = offsetX - 3;
+      const labelY = offsetY + y * cellSize + cellSize / 2;
+      ctx.fillText(String(rowNumber), labelX, labelY);
     }
   }
 
@@ -251,9 +280,11 @@ export class MinimapManager {
     const y = event.clientY - rect.top;
 
     const boardSize = this.game.getBoard().getSize();
-    const cellSize = this.canvas.width / boardSize;
+    const boardPixelSize = this.canvas.width - this.labelMargin;
+    const cellSize = boardPixelSize / boardSize;
 
-    const boardX = Math.floor(x / cellSize);
+    // Account for label offset
+    const boardX = Math.floor((x - this.labelMargin) / cellSize);
     const boardY = Math.floor(y / cellSize);
 
     if (boardX < 0 || boardX >= boardSize || boardY < 0 || boardY >= boardSize) return;
