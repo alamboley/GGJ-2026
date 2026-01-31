@@ -276,7 +276,7 @@ describe('AIPlayer', () => {
       let checkMoves = 0;
 
       for (let i = 0; i < 10; i++) {
-        const g = new Game();
+        const g = new Game({ boardSize: 8, pawnsPerPlayer: 8 });
         const b = g.getBoard();
 
         // Setup where queen can give check or move elsewhere
@@ -306,9 +306,8 @@ describe('AIPlayer', () => {
         });
 
         const move = await new AIPlayer('white', 0).makeMove(g);
-        // Queen can check by moving to e1 (4,7) or d8 (3,0) or e4 (4,3)
+        // Queen can check by moving to d8 (3,0) or e4 (4,3)
         if (move && (
-          (move.to.x === 4 && move.to.y === 0) ||
           (move.to.x === 3 && move.to.y === 0) ||
           (move.to.x === 4 && move.to.y === 3)
         )) {

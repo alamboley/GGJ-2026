@@ -315,7 +315,7 @@ describe('GameFlow Integration', () => {
 
   describe('Stalemate scenarios', () => {
     it('detects stalemate', () => {
-      const game = new Game();
+      const game = new Game({ boardSize: 8, pawnsPerPlayer: 8 });
       const board = game.getBoard();
 
       // Classic stalemate position (already in stalemate after setup):
