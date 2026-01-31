@@ -6,17 +6,25 @@ describe('Game', () => {
   let game: Game;
 
   beforeEach(() => {
-    game = new Game();
+    game = new Game({ boardSize: 8, pawnsPerPlayer: 8 });
   });
 
   describe('constructor', () => {
-    it('creates game with default board size 8', () => {
-      expect(game.getBoard().getSize()).toBe(8);
+    it('creates game with default board size 12', () => {
+      const defaultGame = new Game();
+      expect(defaultGame.getBoard().getSize()).toBe(12);
     });
 
     it('creates game with custom board size', () => {
-      const largeGame = new Game(12);
+      const largeGame = new Game({ boardSize: 12, pawnsPerPlayer: 8 });
       expect(largeGame.getBoard().getSize()).toBe(12);
+    });
+
+    it('creates game with custom pawn count', () => {
+      const customGame = new Game({ boardSize: 10, pawnsPerPlayer: 4 });
+      customGame.setupInitialPosition();
+      const whitePawns = customGame.getBoard().getPiecesByColor('white').filter(p => p.type === 'pawn');
+      expect(whitePawns).toHaveLength(4);
     });
 
     it('starts with white to move', () => {

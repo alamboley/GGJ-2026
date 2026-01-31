@@ -8,7 +8,8 @@ import { RewindManager } from './game/RewindManager';
 import { isKingInCheck } from './game/pieces/MoveValidator';
 import { UIManager } from './ui/UIManager';
 import { MinimapManager } from './ui/MinimapManager';
-import type { GameStatus, PlayerColor, PieceType, Move } from './types';
+import { SettingsManager } from './ui/SettingsManager';
+import type { GameStatus, PlayerColor, PieceType, Move, GameConfig } from './types';
 
 // Store info about captures for feedback
 let lastCapturedPiece: { type: PieceType; color: PlayerColor } | null = null;
@@ -23,19 +24,29 @@ let sceneRef: Scene | null = null;
 let uiManagerRef: UIManager | null = null;
 let minimapManagerRef: MinimapManager | null = null;
 let rewindManagerRef: RewindManager | null = null;
+let settingsManagerRef: SettingsManager | null = null;
 
-async function init(): Promise<void> {
-  const container = document.getElementById('app');
+// Shared resources
+let pieceFactoryRef: PieceFactory | null = null;
+let containerRef: HTMLElement | null = null;
 
-  if (!container) {
-    console.error('Could not find #app container');
+// Current game config
+let currentConfig: GameConfig = { boardSize: 12, pawnsPerPlayer: 8 };
+
+async function initGame(config: GameConfig): Promise<void> {
+  if (!containerRef) {
+    console.error('Container not available');
     return;
   }
 
+  // Reset capture tracking
+  lastCapturedPiece = null;
+  pendingCaptureId = null;
+  pendingCaptureColor = null;
+
   // Initialize components
-  const scene = new Scene(container, 12);
-  const game = new Game(12);
-  const pieceFactory = new PieceFactory();
+  const scene = new Scene(containerRef, config.boardSize);
+  const game = new Game(config);
   const ai = new AIPlayer('black');
   const inputHandler = new InputHandler(scene, game);
 
@@ -43,15 +54,18 @@ async function init(): Promise<void> {
   const animationManager = new AnimationManager(scene);
   scene.setAnimationManager(animationManager);
 
-  // Load 3D models before setting up the game
-  await pieceFactory.loadModels();
+  // Ensure models are loaded
+  if (!pieceFactoryRef) {
+    pieceFactoryRef = new PieceFactory();
+    await pieceFactoryRef.loadModels();
+  }
 
   // Setup initial position
   game.setupInitialPosition();
 
   // Create piece meshes for all pieces
   for (const piece of game.getBoard().getAllPieces()) {
-    const mesh = pieceFactory.createPieceMesh(piece.type, piece.color);
+    const mesh = pieceFactoryRef.createPieceMesh(piece.type, piece.color);
     scene.addPieceMesh(piece.id, mesh, piece.position);
   }
 
@@ -153,11 +167,12 @@ async function init(): Promise<void> {
   gameRef = game;
   sceneRef = scene;
 
-  // Create UI and Minimap managers
-  uiManagerRef = new UIManager(container);
+  // Create UI manager
+  uiManagerRef = new UIManager(containerRef);
   uiManagerRef.updateTurnIndicator('white', game.getGameStatus());
 
-  minimapManagerRef = new MinimapManager(container, game, inputHandler);
+  // Create Minimap manager
+  minimapManagerRef = new MinimapManager(containerRef, game, inputHandler);
   minimapManagerRef.update();
 
   // Create RewindManager (handles all rewind orchestration)
@@ -172,13 +187,60 @@ async function init(): Promise<void> {
   });
   rewindManagerRef.updateButtonState();
 
+  // Create or update SettingsManager
+  if (!settingsManagerRef) {
+    settingsManagerRef = new SettingsManager(containerRef, config);
+    settingsManagerRef.setRestartCallback(restartGame);
+  }
+
   // Update check indicator for initial state (king might start in check with random placement)
   updateCheckIndicator();
 
   // Start render loop
   scene.startRenderLoop();
 
-  console.log('Chess game initialized!');
+  console.log(`Chess game initialized! Board: ${config.boardSize}x${config.boardSize}, Pawns: ${config.pawnsPerPlayer}`);
+}
+
+async function restartGame(config: GameConfig): Promise<void> {
+  currentConfig = config;
+
+  // Dispose old resources
+  if (sceneRef) {
+    sceneRef.dispose();
+    sceneRef = null;
+  }
+
+  // Remove old UI elements
+  const gameUI = document.getElementById('game-ui');
+  if (gameUI) gameUI.remove();
+
+  const minimapContainer = document.getElementById('minimap-container');
+  if (minimapContainer) minimapContainer.remove();
+
+  const gameOverOverlay = document.getElementById('game-over-overlay');
+  if (gameOverOverlay) gameOverOverlay.remove();
+
+  // Clear references
+  gameRef = null;
+  uiManagerRef = null;
+  minimapManagerRef = null;
+  rewindManagerRef = null;
+
+  // Re-initialize game with new config
+  await initGame(config);
+}
+
+async function init(): Promise<void> {
+  const container = document.getElementById('app');
+
+  if (!container) {
+    console.error('Could not find #app container');
+    return;
+  }
+
+  containerRef = container;
+  await initGame(currentConfig);
 }
 
 function updateCheckIndicator(): void {

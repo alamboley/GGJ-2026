@@ -72,7 +72,8 @@ export class Scene {
     this.createBoard();
 
     // Handle window resize
-    window.addEventListener('resize', () => this.onWindowResize(container));
+    this.resizeHandler = () => this.onWindowResize(container);
+    window.addEventListener('resize', this.resizeHandler);
   }
 
   private createSkyDome(): void {
@@ -411,9 +412,12 @@ export class Scene {
     this.renderer.render(this.scene, this.camera);
   }
 
+  private animationFrameId: number | null = null;
+  private resizeHandler: (() => void) | null = null;
+
   startRenderLoop(): void {
     const animate = () => {
-      requestAnimationFrame(animate);
+      this.animationFrameId = requestAnimationFrame(animate);
       const deltaTime = this.clock.getDelta();
       const elapsedTime = this.clock.getElapsedTime();
 
@@ -443,5 +447,83 @@ export class Scene {
       this.render();
     };
     animate();
+  }
+
+  dispose(): void {
+    // Stop animation loop
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+
+    // Remove resize listener
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
+
+    // Dispose all piece meshes
+    this.pieceMeshes.forEach((mesh) => {
+      this.scene.remove(mesh);
+      mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry?.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((mat) => mat.dispose());
+            } else {
+              child.material.dispose();
+            }
+          }
+        }
+      });
+    });
+    this.pieceMeshes.clear();
+
+    // Dispose captured pieces
+    [...this.capturedWhitePieces, ...this.capturedBlackPieces].forEach((mesh) => {
+      this.scene.remove(mesh);
+      mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry?.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((mat) => mat.dispose());
+            } else {
+              child.material.dispose();
+            }
+          }
+        }
+      });
+    });
+    this.capturedWhitePieces = [];
+    this.capturedBlackPieces = [];
+
+    // Dispose board and scene objects
+    this.scene.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry?.dispose();
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((mat) => mat.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      }
+    });
+
+    // Dispose highlight and lighting systems
+    this.highlightSystem.clearHighlights();
+    this.lightingSystem.hideCheckIndicator();
+
+    // Dispose controls and renderer
+    this.controls.dispose();
+    this.renderer.dispose();
+
+    // Remove canvas from DOM
+    if (this.renderer.domElement.parentElement) {
+      this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
+    }
   }
 }

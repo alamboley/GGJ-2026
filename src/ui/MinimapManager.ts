@@ -68,7 +68,9 @@ export class MinimapManager {
     minimapContainer.appendChild(legend);
 
     this.canvas = document.createElement('canvas');
-    const size = 240; // 12x12 grid, 20px per cell
+    const boardSize = this.game.getBoard().getSize();
+    const cellSize = 20; // 20px per cell
+    const size = boardSize * cellSize;
     this.canvas.width = size;
     this.canvas.height = size;
     this.canvas.style.cssText = `
@@ -93,7 +95,7 @@ export class MinimapManager {
   }
 
   update(): void {
-    const boardSize = 12;
+    const boardSize = this.game.getBoard().getSize();
     const cellSize = this.canvas.width / boardSize;
     const ctx = this.ctx;
 
@@ -218,7 +220,7 @@ export class MinimapManager {
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
-    const boardSize = 12;
+    const boardSize = this.game.getBoard().getSize();
     const cellSize = this.canvas.width / boardSize;
 
     const boardX = Math.floor(x / cellSize);

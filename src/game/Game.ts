@@ -1,6 +1,6 @@
 import { Board } from './Board';
 import { getLegalMoves, getGameStatus, isLegalMove } from './pieces/MoveValidator';
-import type { GameState, PlayerColor, Move, ChessPiece, PieceType, GameStatus, Position, MoveHistoryEntry } from '../types';
+import type { GameState, PlayerColor, Move, ChessPiece, PieceType, GameStatus, Position, MoveHistoryEntry, GameConfig } from '../types';
 
 type MoveCallback = (move: Move) => void;
 type CaptureCallback = (pieceId: string, pieceType: PieceType, pieceColor: PlayerColor) => void;
@@ -10,6 +10,7 @@ type RewindCallback = (entry: MoveHistoryEntry) => void;
 
 export class Game {
   private board: Board;
+  private config: GameConfig;
   private currentTurn: PlayerColor = 'white';
   private turnNumber: number = 1;
   private lastMove: Move | null = null;
@@ -23,8 +24,13 @@ export class Game {
   onTurnChanged: TurnCallback | null = null;
   onMoveRewound: RewindCallback | null = null;
 
-  constructor(boardSize: number = 8) {
-    this.board = new Board(boardSize);
+  constructor(config: GameConfig = { boardSize: 12, pawnsPerPlayer: 8 }) {
+    this.config = config;
+    this.board = new Board(config.boardSize);
+  }
+
+  getConfig(): GameConfig {
+    return this.config;
   }
 
   getBoard(): Board {
@@ -92,14 +98,18 @@ export class Game {
       [allPositions[i], allPositions[j]] = [allPositions[j], allPositions[i]];
     }
 
-    // Define pieces for each player (standard chess pieces)
+    // Build pieces list dynamically based on config
     const piecesPerPlayer: PieceType[] = [
       'king', 'queen',
       'rook', 'rook',
       'bishop', 'bishop',
       'knight', 'knight',
-      'pawn', 'pawn', 'pawn', 'pawn', 'pawn', 'pawn', 'pawn', 'pawn',
     ];
+
+    // Add pawns based on config
+    for (let i = 0; i < this.config.pawnsPerPlayer; i++) {
+      piecesPerPlayer.push('pawn');
+    }
 
     let positionIndex = 0;
 

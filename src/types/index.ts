@@ -42,3 +42,8 @@ export interface MoveHistoryEntry {
   previousTurnNumber: number;
   previousGameStatus: GameStatus;
 }
+
+export interface GameConfig {
+  boardSize: number;      // 8-16
+  pawnsPerPlayer: number; // 0-12
+}
