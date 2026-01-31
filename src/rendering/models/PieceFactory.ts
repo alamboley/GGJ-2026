@@ -35,7 +35,7 @@ export class PieceFactory {
 
     await Promise.all(
       pieceTypes.map(async (type) => {
-        const gltf = await this.loader.loadAsync(`/assets/${type}.glb`);
+        const gltf = await this.loader.loadAsync(`./assets/${type}.glb`);
         this.modelCache[type] = gltf.scene;
       })
     );

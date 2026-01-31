@@ -8,7 +8,7 @@ export function MainMenu({ onStart }: MainMenuProps) {
   return (
     <div className="menu-overlay">
       <div className="menu-content">
-        <img src="/assets/logo.png" alt="Battlefield Chess" className="menu-logo" />
+        <img src="./assets/logo.png" alt="Battlefield Chess" className="menu-logo" />
         <h1 className="menu-title">Battlefield Chess</h1>
         <p className="menu-subtitle">A Chess Battle Royale</p>
 

@@ -85,8 +85,8 @@ export class Scene {
     const textureLoader = new THREE.TextureLoader();
 
     // Load HDR and depth textures
-    const hdrTexture = textureLoader.load('/assets/hdr_high.png');
-    const depthTexture = textureLoader.load('/assets/depth.png');
+    const hdrTexture = textureLoader.load('./assets/hdr_high.png');
+    const depthTexture = textureLoader.load('./assets/depth.png');
 
     // Configure textures for spherical mapping
     hdrTexture.colorSpace = THREE.SRGBColorSpace;
