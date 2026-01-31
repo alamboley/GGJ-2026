@@ -165,16 +165,19 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
       inputHandler.setEnabled(false);
       // Disable rewind during AI turn
       uiManagerRef?.setRewindEnabled(false);
-      ai.makeMove(game).then(() => {
-        if (!game.isGameOver()) {
+      // Small delay before AI moves for better game feel
+      setTimeout(() => {
+        ai.makeMove(game).then(() => {
+          if (!game.isGameOver()) {
+            inputHandler.setEnabled(true);
+            rewindManagerRef?.updateButtonState();
+          }
+        }).catch((err) => {
+          console.error('AI move error:', err);
           inputHandler.setEnabled(true);
           rewindManagerRef?.updateButtonState();
-        }
-      }).catch((err) => {
-        console.error('AI move error:', err);
-        inputHandler.setEnabled(true);
-        rewindManagerRef?.updateButtonState();
-      });
+        });
+      }, 800);
     } else if (turn === 'white' && !game.isGameOver()) {
       // Safety: ensure input is enabled when it's the player's turn
       inputHandler.setEnabled(true);
@@ -232,6 +235,11 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
     settingsManagerRef = new SettingsManager(containerRef, config);
     settingsManagerRef.setRestartCallback(restartGame);
   }
+
+  // Wire up settings button to toggle the settings panel
+  uiManagerRef.setSettingsCallback(() => {
+    settingsManagerRef?.togglePanel();
+  });
 
   // Update check indicator for initial state (king might start in check with random placement)
   updateCheckIndicator();

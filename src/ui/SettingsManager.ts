@@ -6,7 +6,6 @@ export class SettingsManager {
   private container: HTMLElement;
   private panelVisible: boolean = false;
   private settingsPanel: HTMLElement | null = null;
-  private gearButton: HTMLElement | null = null;
   private restartCallback: RestartCallback | null = null;
 
   // Current settings values
@@ -21,47 +20,13 @@ export class SettingsManager {
   }
 
   private createUI(): void {
-    // Create gear button
-    this.gearButton = document.createElement('button');
-    this.gearButton.id = 'settings-button';
-    this.gearButton.innerHTML = '&#9881;'; // Gear icon
-    this.gearButton.style.cssText = `
-      position: absolute;
-      top: 200px;
-      left: 20px;
-      width: 40px;
-      height: 40px;
-      font-size: 24px;
-      cursor: pointer;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 8px;
-      transition: background 0.2s, transform 0.2s;
-      z-index: 100;
-    `;
-    this.gearButton.addEventListener('click', () => this.togglePanel());
-    this.gearButton.addEventListener('mouseenter', () => {
-      if (this.gearButton) {
-        this.gearButton.style.background = 'rgba(50, 50, 50, 0.9)';
-        this.gearButton.style.transform = 'rotate(30deg)';
-      }
-    });
-    this.gearButton.addEventListener('mouseleave', () => {
-      if (this.gearButton) {
-        this.gearButton.style.background = 'rgba(0, 0, 0, 0.7)';
-        this.gearButton.style.transform = 'rotate(0deg)';
-      }
-    });
-    this.container.appendChild(this.gearButton);
-
     // Create settings panel (hidden by default)
     this.settingsPanel = document.createElement('div');
     this.settingsPanel.id = 'settings-panel';
     this.settingsPanel.style.cssText = `
       position: absolute;
-      top: 200px;
-      left: 70px;
+      top: 170px;
+      left: 20px;
       background: rgba(0, 0, 0, 0.85);
       color: white;
       padding: 15px;
@@ -250,7 +215,7 @@ export class SettingsManager {
     }
   }
 
-  private togglePanel(): void {
+  togglePanel(): void {
     if (this.panelVisible) {
       this.hidePanel();
     } else {
@@ -300,9 +265,6 @@ export class SettingsManager {
   }
 
   dispose(): void {
-    if (this.gearButton && this.gearButton.parentElement) {
-      this.gearButton.parentElement.removeChild(this.gearButton);
-    }
     if (this.settingsPanel && this.settingsPanel.parentElement) {
       this.settingsPanel.parentElement.removeChild(this.settingsPanel);
     }

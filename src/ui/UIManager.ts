@@ -11,6 +11,7 @@ export class UIManager {
   private rewindCallback: (() => void) | null = null;
   private rewindButton: HTMLButtonElement | null = null;
   private maskToggleCallback: ((enabled: boolean) => void) | null = null;
+  private settingsCallback: (() => void) | null = null;
   private masksEnabled: boolean = true;
 
   constructor(container: HTMLElement) {
@@ -113,17 +114,54 @@ export class UIManager {
     });
     uiContainer.appendChild(maskToggleButton);
 
+    // Settings button
+    const settingsButton = document.createElement('button');
+    settingsButton.id = 'settings-button';
+    settingsButton.innerHTML = '&#9881;';
+    settingsButton.style.cssText = `
+      margin-top: 10px;
+      margin-left: 10px;
+      padding: 8px 12px;
+      font-size: 16px;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      pointer-events: auto;
+      transition: background 0.2s, transform 0.2s;
+    `;
+    settingsButton.addEventListener('click', () => {
+      if (this.settingsCallback) {
+        this.settingsCallback();
+      }
+    });
+    settingsButton.addEventListener('mouseenter', () => {
+      settingsButton.style.background = 'rgba(50, 50, 50, 0.9)';
+      settingsButton.style.transform = 'rotate(30deg)';
+    });
+    settingsButton.addEventListener('mouseleave', () => {
+      settingsButton.style.background = 'rgba(0, 0, 0, 0.7)';
+      settingsButton.style.transform = 'rotate(0deg)';
+    });
+    uiContainer.appendChild(settingsButton);
+
     const moveLog = document.createElement('div');
     moveLog.id = 'move-log';
     moveLog.style.cssText = `
-      margin-top: 15px;
-      padding: 10px;
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 20px;
       background: rgba(0, 0, 0, 0.6);
-      border-radius: 5px;
-      font-size: 14px;
-      max-width: 250px;
+      border-radius: 8px;
+      font-size: 18px;
+      min-width: 350px;
+      min-height: 120px;
+      color: white;
     `;
-    uiContainer.appendChild(moveLog);
+    this.container.appendChild(moveLog);
 
     this.container.appendChild(uiContainer);
   }
@@ -180,10 +218,10 @@ export class UIManager {
       logText += '<hr style="border-color: rgba(255,255,255,0.3); margin: 8px 0;">';
     }
 
-    // Show AI move
+    // Show AI move - hide piece type if masks are enabled
     const from = this.formatPosition(aiMove.move.from.x, aiMove.move.from.y);
     const to = this.formatPosition(aiMove.move.to.x, aiMove.move.to.y);
-    const pieceName = this.formatPieceType(aiMove.pieceType);
+    const pieceName = this.masksEnabled ? '???' : this.formatPieceType(aiMove.pieceType);
 
     logText += `<strong>AI moved:</strong> ${pieceName} ${from} → ${to}`;
 
@@ -261,6 +299,13 @@ export class UIManager {
    */
   setMaskToggleCallback(callback: (enabled: boolean) => void): void {
     this.maskToggleCallback = callback;
+  }
+
+  /**
+   * Set the callback for the settings button
+   */
+  setSettingsCallback(callback: () => void): void {
+    this.settingsCallback = callback;
   }
 
   /**
