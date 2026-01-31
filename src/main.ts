@@ -5,37 +5,22 @@ import { AIPlayer } from './ai/AIPlayer';
 import { InputHandler } from './game/InputHandler';
 import { AnimationManager } from './rendering/AnimationManager';
 import { isKingInCheck } from './game/pieces/MoveValidator';
+import { UIManager } from './ui/UIManager';
+import { MinimapManager } from './ui/MinimapManager';
 import type { GameStatus, PlayerColor, PieceType, Move } from './types';
 
-// Store info about captures and moves for feedback
+// Store info about captures for feedback
 let lastCapturedPiece: { type: PieceType; color: PlayerColor } | null = null;
-let lastPlayerMove: { move: Move; pieceType: PieceType; captured: { type: PieceType; color: PlayerColor } | null } | null = null;
-
-// Minimap references
-let minimapCanvas: HTMLCanvasElement | null = null;
-let minimapCtx: CanvasRenderingContext2D | null = null;
-let gameRef: Game | null = null;
-let inputHandlerRef: InputHandler | null = null;
-let sceneRef: Scene | null = null;
-
 
 // Track pending capture for animation
 let pendingCaptureId: string | null = null;
 let pendingCaptureColor: PlayerColor | null = null;
 
-// Minimap selection state
-let minimapSelectedPieceId: string | null = null;
-let minimapValidMoves: Move[] = [];
-
-// Piece symbols for minimap
-const PIECE_SYMBOLS: Record<PieceType, string> = {
-  king: 'K',
-  queen: 'Q',
-  rook: 'R',
-  bishop: 'B',
-  knight: 'N',
-  pawn: 'P',
-};
+// Manager references for callbacks
+let gameRef: Game | null = null;
+let sceneRef: Scene | null = null;
+let uiManagerRef: UIManager | null = null;
+let minimapManagerRef: MinimapManager | null = null;
 
 async function init(): Promise<void> {
   const container = document.getElementById('app');
@@ -69,46 +54,52 @@ async function init(): Promise<void> {
   }
 
   // Wire game events to scene
-  game.onPieceMoved = async (move) => {
+  game.onPieceMoved = async (move: Move) => {
     const piece = game.getBoard().getPiece(move.pieceId);
 
+    // Capture values BEFORE async operations to avoid race conditions
+    // (AI move could overwrite these during player's animation)
+    const capturedPieceForUI = lastCapturedPiece;
+    lastCapturedPiece = null;
+
+    const captureId = pendingCaptureId;
+    const captureColor = pendingCaptureColor;
+    pendingCaptureId = null;
+    pendingCaptureColor = null;
+
+    // Update UI immediately (before animation) for realtime feedback
+    if (piece) {
+      const moveInfo = {
+        move,
+        pieceType: piece.type,
+        captured: capturedPieceForUI,
+      };
+
+      if (piece.color === 'white') {
+        uiManagerRef?.showPlayerMove(moveInfo);
+      } else {
+        uiManagerRef?.showAIMove(moveInfo);
+      }
+    }
+
     // Animate all moves (both player and AI)
-    if (pendingCaptureId && pendingCaptureColor) {
+    if (captureId && captureColor) {
       // This is a capture move - play full cinematic sequence
-      await animationManager.playCaptureSequence(move, pendingCaptureId, pendingCaptureColor);
-      pendingCaptureId = null;
-      pendingCaptureColor = null;
+      await animationManager.playCaptureSequence(move, captureId, captureColor);
     } else {
       // Simple move - just animate the movement
       await animationManager.playMoveSequence(move);
     }
 
-    updateMinimap();
-
-    if (piece) {
-      if (piece.color === 'white') {
-        // Store player move for display alongside AI move
-        lastPlayerMove = {
-          move,
-          pieceType: piece.type,
-          captured: lastCapturedPiece,
-        };
-        lastCapturedPiece = null;
-      } else {
-        // Show both player and AI moves together
-        showMoveLog(lastPlayerMove, { move, pieceType: piece.type, captured: lastCapturedPiece });
-        lastCapturedPiece = null;
-        lastPlayerMove = null;
-      }
-    }
+    minimapManagerRef?.update();
   };
 
-  game.onPieceCaptured = (pieceId, pieceType, pieceColor) => {
+  game.onPieceCaptured = (pieceId: string, pieceType: PieceType, pieceColor: PlayerColor) => {
     // Defer removal for animation (both player and AI captures)
     pendingCaptureId = pieceId;
     pendingCaptureColor = pieceColor;
     lastCapturedPiece = { type: pieceType, color: pieceColor };
-    updateMinimap();
+    minimapManagerRef?.update();
   };
 
   game.onGameOver = (status: GameStatus, winner: PlayerColor | null) => {
@@ -121,13 +112,13 @@ async function init(): Promise<void> {
       message = 'Stalemate! The game is a draw.';
     }
 
-    showGameOverMessage(message);
+    uiManagerRef?.showGameOverMessage(message);
   };
 
-  game.onTurnChanged = (turn) => {
-    updateTurnIndicator(turn, game.getGameStatus());
+  game.onTurnChanged = (turn: PlayerColor) => {
+    uiManagerRef?.updateTurnIndicator(turn, game.getGameStatus());
     // Clear minimap selection on turn change
-    clearMinimapSelection();
+    minimapManagerRef?.clearSelection();
     // Update check indicator
     updateCheckIndicator();
 
@@ -147,69 +138,24 @@ async function init(): Promise<void> {
     }
   };
 
-  // Create UI
-  createUI(container);
-  updateTurnIndicator('white', game.getGameStatus());
-
-  // Create and initialize minimap
+  // Store references for callbacks
   gameRef = game;
-  inputHandlerRef = inputHandler;
   sceneRef = scene;
-  createMinimap(container);
-  updateMinimap();
+
+  // Create UI and Minimap managers
+  uiManagerRef = new UIManager(container);
+  uiManagerRef.updateTurnIndicator('white', game.getGameStatus());
+
+  minimapManagerRef = new MinimapManager(container, game, inputHandler);
+  minimapManagerRef.update();
 
   // Update check indicator for initial state (king might start in check with random placement)
   updateCheckIndicator();
-
-  // Sync 3D selection to minimap
-  inputHandler.onSelectionChanged = (pieceId, validMoves) => {
-    minimapSelectedPieceId = pieceId;
-    minimapValidMoves = validMoves;
-    updateMinimap();
-  };
 
   // Start render loop
   scene.startRenderLoop();
 
   console.log('Chess game initialized!');
-}
-
-function createUI(container: HTMLElement): void {
-  const uiContainer = document.createElement('div');
-  uiContainer.id = 'game-ui';
-  uiContainer.style.cssText = `
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    color: white;
-    font-family: Arial, sans-serif;
-    font-size: 18px;
-    text-shadow: 1px 1px 2px black;
-    pointer-events: none;
-  `;
-
-  const turnIndicator = document.createElement('div');
-  turnIndicator.id = 'turn-indicator';
-  uiContainer.appendChild(turnIndicator);
-
-  const statusIndicator = document.createElement('div');
-  statusIndicator.id = 'status-indicator';
-  statusIndicator.style.marginTop = '10px';
-  uiContainer.appendChild(statusIndicator);
-
-  const moveLog = document.createElement('div');
-  moveLog.id = 'move-log';
-  moveLog.style.cssText = `
-    margin-top: 15px;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.6);
-    border-radius: 5px;
-    font-size: 14px;
-    max-width: 250px;
-  `;
-  uiContainer.appendChild(moveLog);
-
-  container.appendChild(uiContainer);
 }
 
 function updateCheckIndicator(): void {
@@ -227,356 +173,6 @@ function updateCheckIndicator(): void {
   } else {
     sceneRef.hideCheckIndicator();
   }
-}
-
-function updateTurnIndicator(turn: PlayerColor, status: GameStatus): void {
-  const turnIndicator = document.getElementById('turn-indicator');
-  const statusIndicator = document.getElementById('status-indicator');
-
-  if (turnIndicator) {
-    turnIndicator.textContent = turn === 'white' ? 'Your turn (White)' : 'AI thinking...';
-  }
-
-  if (statusIndicator) {
-    if (status === 'check') {
-      statusIndicator.textContent = 'Check!';
-      statusIndicator.style.color = '#ff6b6b';
-    } else {
-      statusIndicator.textContent = '';
-    }
-  }
-}
-
-function formatPosition(x: number, y: number): string {
-  const col = String.fromCharCode(65 + x); // A, B, C, etc.
-  const row = y + 1;
-  return `${col}${row}`;
-}
-
-function formatPieceType(type: PieceType): string {
-  return type.charAt(0).toUpperCase() + type.slice(1);
-}
-
-interface MoveInfo {
-  move: Move;
-  pieceType: PieceType;
-  captured: { type: PieceType; color: PlayerColor } | null;
-}
-
-function showMoveLog(playerMove: MoveInfo | null, aiMove: MoveInfo): void {
-  const moveLog = document.getElementById('move-log');
-  if (!moveLog) return;
-
-  let logText = '';
-
-  // Show player move
-  if (playerMove) {
-    const from = formatPosition(playerMove.move.from.x, playerMove.move.from.y);
-    const to = formatPosition(playerMove.move.to.x, playerMove.move.to.y);
-    const pieceName = formatPieceType(playerMove.pieceType);
-
-    logText += `<strong>You moved:</strong> ${pieceName} ${from} → ${to}`;
-
-    if (playerMove.captured) {
-      const capturedName = formatPieceType(playerMove.captured.type);
-      logText += `<br><span style="color: #4CAF50;">Captured ${capturedName}!</span>`;
-    }
-
-    logText += '<hr style="border-color: rgba(255,255,255,0.3); margin: 8px 0;">';
-  }
-
-  // Show AI move
-  const from = formatPosition(aiMove.move.from.x, aiMove.move.from.y);
-  const to = formatPosition(aiMove.move.to.x, aiMove.move.to.y);
-  const pieceName = formatPieceType(aiMove.pieceType);
-
-  logText += `<strong>AI moved:</strong> ${pieceName} ${from} → ${to}`;
-
-  if (aiMove.captured) {
-    const capturedName = formatPieceType(aiMove.captured.type);
-    logText += `<br><span style="color: #ff6b6b;">Captured your ${capturedName}!</span>`;
-  }
-
-  moveLog.innerHTML = logText;
-
-  // Brief highlight animation
-  moveLog.style.background = 'rgba(100, 50, 50, 0.8)';
-  setTimeout(() => {
-    moveLog.style.background = 'rgba(0, 0, 0, 0.6)';
-  }, 500);
-}
-
-function createMinimap(container: HTMLElement): void {
-  const minimapContainer = document.createElement('div');
-  minimapContainer.id = 'minimap-container';
-  minimapContainer.style.cssText = `
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    padding: 10px;
-    border-radius: 8px;
-  `;
-
-  const title = document.createElement('div');
-  title.style.cssText = `
-    color: white;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    text-align: center;
-    margin-bottom: 8px;
-    text-shadow: 1px 1px 2px black;
-  `;
-  title.textContent = 'Board Overview (Click to move)';
-  minimapContainer.appendChild(title);
-
-  // Legend
-  const legend = document.createElement('div');
-  legend.style.cssText = `
-    color: white;
-    font-family: Arial, sans-serif;
-    font-size: 11px;
-    margin-bottom: 6px;
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-  `;
-  legend.innerHTML = `
-    <span><span style="color: #4fc3f7;">■</span> You</span>
-    <span><span style="color: #ff6b6b;">■</span> Enemy</span>
-  `;
-  minimapContainer.appendChild(legend);
-
-  minimapCanvas = document.createElement('canvas');
-  const size = 240; // 12x12 grid, 20px per cell
-  minimapCanvas.width = size;
-  minimapCanvas.height = size;
-  minimapCanvas.style.cssText = `
-    border: 2px solid #444;
-    border-radius: 4px;
-    cursor: pointer;
-  `;
-  minimapContainer.appendChild(minimapCanvas);
-
-  // Add click handler
-  minimapCanvas.addEventListener('click', onMinimapClick);
-
-  minimapCtx = minimapCanvas.getContext('2d');
-  container.appendChild(minimapContainer);
-}
-
-function onMinimapClick(event: MouseEvent): void {
-  if (!minimapCanvas || !gameRef || !inputHandlerRef) return;
-  if (!inputHandlerRef.isEnabled()) return; // Don't allow input during AI turn
-
-  const rect = minimapCanvas.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
-
-  const boardSize = 12;
-  const cellSize = minimapCanvas.width / boardSize;
-
-  const boardX = Math.floor(x / cellSize);
-  const boardY = Math.floor(y / cellSize);
-
-  if (boardX < 0 || boardX >= boardSize || boardY < 0 || boardY >= boardSize) return;
-
-  const position = { x: boardX, y: boardY };
-  const clickedPiece = gameRef.getBoard().getPieceAt(position);
-
-  if (minimapSelectedPieceId) {
-    // Check if clicking on a valid move target
-    const validMove = minimapValidMoves.find(
-      (m) => m.to.x === position.x && m.to.y === position.y
-    );
-
-    if (validMove) {
-      // Execute the move
-      gameRef.executeMove(validMove);
-      clearMinimapSelection();
-      return;
-    }
-
-    // Check if clicking on own piece to reselect
-    if (clickedPiece && clickedPiece.color === gameRef.getCurrentTurn()) {
-      selectMinimapPiece(clickedPiece.id);
-      return;
-    }
-
-    // Clicking elsewhere - deselect
-    clearMinimapSelection();
-    return;
-  }
-
-  // No piece selected - try to select one
-  if (clickedPiece && clickedPiece.color === gameRef.getCurrentTurn()) {
-    selectMinimapPiece(clickedPiece.id);
-  }
-}
-
-function selectMinimapPiece(pieceId: string): void {
-  if (!gameRef) return;
-
-  const piece = gameRef.getBoard().getPiece(pieceId);
-  if (!piece) return;
-
-  minimapSelectedPieceId = pieceId;
-  minimapValidMoves = gameRef.getValidMoves(piece);
-
-  // Also update 3D view
-  if (inputHandlerRef) {
-    inputHandlerRef.selectPieceById(pieceId);
-  }
-
-  updateMinimap();
-}
-
-function clearMinimapSelection(): void {
-  minimapSelectedPieceId = null;
-  minimapValidMoves = [];
-
-  // Also clear 3D view
-  if (inputHandlerRef) {
-    inputHandlerRef.clearSelectionExternal();
-  }
-
-  updateMinimap();
-}
-
-function updateMinimap(): void {
-  if (!minimapCtx || !minimapCanvas || !gameRef) return;
-
-  const boardSize = 12;
-  const cellSize = minimapCanvas.width / boardSize;
-  const ctx = minimapCtx;
-
-  // Clear canvas
-  ctx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-
-  // Draw board squares
-  for (let x = 0; x < boardSize; x++) {
-    for (let y = 0; y < boardSize; y++) {
-      const isLight = (x + y) % 2 === 0;
-      ctx.fillStyle = isLight ? '#d4c4a8' : '#8b7355';
-      ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-    }
-  }
-
-  // Draw check indicator (red square under king in check)
-  const currentTurn = gameRef.getCurrentTurn();
-  if (isKingInCheck(currentTurn, gameRef.getBoard())) {
-    const king = gameRef.getBoard().findPiece('king', currentTurn);
-    if (king) {
-      const x = king.position.x * cellSize;
-      const y = king.position.y * cellSize;
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-      ctx.fillRect(x, y, cellSize, cellSize);
-    }
-  }
-
-  // Draw valid move highlights
-  for (const move of minimapValidMoves) {
-    const x = move.to.x * cellSize;
-    const y = move.to.y * cellSize;
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.4)';
-    ctx.fillRect(x, y, cellSize, cellSize);
-  }
-
-  // Draw selected piece highlight
-  if (minimapSelectedPieceId) {
-    const selectedPiece = gameRef.getBoard().getPiece(minimapSelectedPieceId);
-    if (selectedPiece) {
-      const x = selectedPiece.position.x * cellSize;
-      const y = selectedPiece.position.y * cellSize;
-      ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
-      ctx.fillRect(x, y, cellSize, cellSize);
-    }
-  }
-
-  // Draw pieces
-  const pieces = gameRef.getBoard().getAllPieces();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  for (const piece of pieces) {
-    const x = piece.position.x * cellSize + cellSize / 2;
-    const y = piece.position.y * cellSize + cellSize / 2;
-
-    // Highlight selected piece with glow
-    const isSelected = piece.id === minimapSelectedPieceId;
-
-    // Draw piece background circle
-    ctx.beginPath();
-    ctx.arc(x, y, cellSize * 0.4, 0, Math.PI * 2);
-    ctx.fillStyle = piece.color === 'white' ? '#4fc3f7' : '#ff6b6b';
-    ctx.fill();
-
-    if (isSelected) {
-      ctx.strokeStyle = '#ffff00';
-      ctx.lineWidth = 3;
-    } else {
-      ctx.strokeStyle = piece.color === 'white' ? '#0288d1' : '#c62828';
-      ctx.lineWidth = 1.5;
-    }
-    ctx.stroke();
-
-    // Draw piece symbol
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${cellSize * 0.5}px Arial`;
-    ctx.fillText(PIECE_SYMBOLS[piece.type], x, y + 1);
-  }
-
-  // Draw grid lines
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
-  ctx.lineWidth = 0.5;
-  for (let i = 0; i <= boardSize; i++) {
-    ctx.beginPath();
-    ctx.moveTo(i * cellSize, 0);
-    ctx.lineTo(i * cellSize, minimapCanvas.height);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, i * cellSize);
-    ctx.lineTo(minimapCanvas.width, i * cellSize);
-    ctx.stroke();
-  }
-}
-
-function showGameOverMessage(message: string): void {
-  const existingOverlay = document.getElementById('game-over-overlay');
-  if (existingOverlay) return;
-
-  const overlay = document.createElement('div');
-  overlay.id = 'game-over-overlay';
-  overlay.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.9);
-    color: white;
-    padding: 40px 60px;
-    border-radius: 10px;
-    font-family: Arial, sans-serif;
-    font-size: 24px;
-    text-align: center;
-    z-index: 1000;
-  `;
-
-  overlay.innerHTML = `
-    <div>${message}</div>
-    <button onclick="location.reload()" style="
-      margin-top: 20px;
-      padding: 10px 30px;
-      font-size: 18px;
-      cursor: pointer;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 5px;
-    ">Play Again</button>
-  `;
-
-  document.body.appendChild(overlay);
 }
 
 // Start the application when DOM is ready

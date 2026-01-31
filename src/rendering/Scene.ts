@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { Position } from '../types';
 import type { AnimationManager } from './AnimationManager';
+import { LightingSystem } from './LightingSystem';
+import { HighlightSystem } from './HighlightSystem';
 
 export class Scene {
   private scene: THREE.Scene;
@@ -10,27 +12,25 @@ export class Scene {
   private controls: OrbitControls;
   private boardSize: number;
   private pieceMeshes: Map<string, THREE.Object3D> = new Map();
-  private highlightMeshes: THREE.Mesh[] = [];
   private boardGroup: THREE.Group;
   private animationManager: AnimationManager | null = null;
   private clock: THREE.Clock = new THREE.Clock();
 
+  // Extracted systems
+  private lightingSystem: LightingSystem;
+  private highlightSystem: HighlightSystem;
+
   // Captured pieces display
   private capturedWhitePieces: THREE.Object3D[] = []; // White pieces captured by black
   private capturedBlackPieces: THREE.Object3D[] = []; // Black pieces captured by white
-
-  // Check indicator light
-  private checkSpotlight: THREE.SpotLight | null = null;
-  private checkSpotlightTarget: THREE.Object3D | null = null;
-  private checkGlowMesh: THREE.Mesh | null = null;
 
   constructor(container: HTMLElement, boardSize: number = 8) {
     this.boardSize = boardSize;
 
     // Create scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x3a3020);
-    this.scene.fog = new THREE.FogExp2(0x3a3020, 0.025); // Warm battlefield haze
+    // No background color - sky dome will provide the background
+    this.scene.fog = new THREE.FogExp2(0x5a6080, 0.02); // Atmospheric haze matching HDR
 
     // Create camera
     const aspect = container.clientWidth / container.clientHeight;
@@ -59,11 +59,9 @@ export class Scene {
     // Create sky dome (background)
     this.createSkyDome();
 
-    // Create ground plane
-    this.createGround();
-
-    // Add lighting
-    this.setupLighting();
+    // Initialize extracted systems
+    this.lightingSystem = new LightingSystem(this.scene, boardSize);
+    this.highlightSystem = new HighlightSystem(this.scene, boardSize);
 
     // Create board group for raycasting
     this.boardGroup = new THREE.Group();
@@ -78,102 +76,64 @@ export class Scene {
   }
 
   private createSkyDome(): void {
-    const skyGeometry = new THREE.SphereGeometry(80, 32, 32);
+    const textureLoader = new THREE.TextureLoader();
+
+    // Load HDR and depth textures
+    const hdrTexture = textureLoader.load('/assets/hdr_high.png');
+    const depthTexture = textureLoader.load('/assets/depth.png');
+
+    // Configure textures for spherical mapping
+    hdrTexture.colorSpace = THREE.SRGBColorSpace;
+
+    const skyGeometry = new THREE.SphereGeometry(80, 64, 64);
     const skyMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        topColor: { value: new THREE.Color(0x2a1a4a) },    // Deep purple
-        bottomColor: { value: new THREE.Color(0xd4a574) }, // Sunset amber
+        hdrMap: { value: hdrTexture },
+        depthMap: { value: depthTexture },
+        time: { value: 0 },
       },
       vertexShader: `
+        varying vec2 vUv;
         varying vec3 vWorldPosition;
         void main() {
+          vUv = uv;
           vec4 worldPosition = modelMatrix * vec4(position, 1.0);
           vWorldPosition = worldPosition.xyz;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
-        uniform vec3 topColor;
-        uniform vec3 bottomColor;
+        uniform sampler2D hdrMap;
+        uniform sampler2D depthMap;
+        uniform float time;
+        varying vec2 vUv;
         varying vec3 vWorldPosition;
+
         void main() {
-          float h = normalize(vWorldPosition).y;
-          float t = max(0.0, h);
-          gl_FragColor = vec4(mix(bottomColor, topColor, t), 1.0);
+          // Sample depth for parallax effect
+          float depth = texture2D(depthMap, vUv).r;
+
+          // Add subtle parallax offset based on depth
+          vec2 parallaxOffset = vec2(sin(time * 0.1) * 0.01, cos(time * 0.15) * 0.005) * depth;
+          vec2 finalUv = vUv + parallaxOffset;
+
+          // Sample HDR texture
+          vec4 hdrColor = texture2D(hdrMap, finalUv);
+
+          // Apply tone mapping for HDR-like effect
+          vec3 color = hdrColor.rgb;
+          color = color / (color + vec3(1.0)); // Reinhard tone mapping
+          color = pow(color, vec3(1.0 / 2.2)); // Gamma correction
+
+          gl_FragColor = vec4(color, 1.0);
         }
       `,
       side: THREE.BackSide,
     });
-    this.scene.add(new THREE.Mesh(skyGeometry, skyMaterial));
-  }
 
-  private createGround(): void {
-    const groundGeometry = new THREE.PlaneGeometry(60, 60);
-    const groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x3d4a2d, // Dark grass/mud
-      roughness: 0.9,
-    });
-    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.05;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-  }
-
-  private setupLighting(): void {
-    // Hemisphere light for natural sky/ground ambient
-    const hemiLight = new THREE.HemisphereLight(0xd4a574, 0x3d4a2d, 0.4);
-    hemiLight.position.set(0, 20, 0);
-    this.scene.add(hemiLight);
-
-    // Main directional light (sun) - warm amber for sunset
-    const directionalLight = new THREE.DirectionalLight(0xffd4a0, 1.2);
-    directionalLight.position.set(10, 20, 10);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.near = 0.5;
-    directionalLight.shadow.camera.far = 50;
-    directionalLight.shadow.camera.left = -15;
-    directionalLight.shadow.camera.right = 15;
-    directionalLight.shadow.camera.top = 15;
-    directionalLight.shadow.camera.bottom = -15;
-    this.scene.add(directionalLight);
-
-    // Fill light from opposite side - cooler tone
-    const fillLight = new THREE.DirectionalLight(0x8888cc, 0.4);
-    fillLight.position.set(-10, 15, -10);
-    this.scene.add(fillLight);
-
-    // Front fill light to show face details - warm
-    const frontLight = new THREE.DirectionalLight(0xffd4a0, 0.3);
-    frontLight.position.set(0, 10, 15);
-    this.scene.add(frontLight);
-
-    // Check indicator spotlight (red light from above, initially disabled)
-    this.checkSpotlightTarget = new THREE.Object3D();
-    this.scene.add(this.checkSpotlightTarget);
-
-    this.checkSpotlight = new THREE.SpotLight(0xff0000, 0, 15, Math.PI / 12, 0.4, 1.5);
-    this.checkSpotlight.position.set(0, 8, 0);
-    this.checkSpotlight.target = this.checkSpotlightTarget;
-    this.checkSpotlight.castShadow = true;
-    this.checkSpotlight.shadow.mapSize.width = 512;
-    this.checkSpotlight.shadow.mapSize.height = 512;
-    this.scene.add(this.checkSpotlight);
-
-    // Glowing red ring on the ground under the king in check
-    const ringGeometry = new THREE.RingGeometry(0.3, 0.5, 32);
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
-      transparent: true,
-      opacity: 0,
-      side: THREE.DoubleSide,
-    });
-    this.checkGlowMesh = new THREE.Mesh(ringGeometry, ringMaterial);
-    this.checkGlowMesh.rotation.x = -Math.PI / 2;
-    this.checkGlowMesh.position.y = 0.07;
-    this.scene.add(this.checkGlowMesh);
+    const skyMesh = new THREE.Mesh(skyGeometry, skyMaterial);
+    skyMesh.name = 'skyDome';
+    this.scene.add(skyMesh);
   }
 
   private createTextSprite(text: string): THREE.Sprite {
@@ -351,60 +311,26 @@ export class Scene {
     capturedList.push(mesh);
   }
 
+  // Delegate to HighlightSystem
   highlightSquares(positions: Position[], color: number = 0x00ff00): void {
-    this.clearHighlights();
-
-    const halfBoard = this.boardSize / 2;
-
-    for (const pos of positions) {
-      const geometry = new THREE.PlaneGeometry(0.9, 0.9);
-      const material = new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.4,
-        side: THREE.DoubleSide,
-      });
-      const highlight = new THREE.Mesh(geometry, material);
-
-      highlight.position.set(
-        pos.x - halfBoard + 0.5,
-        0.06,
-        pos.y - halfBoard + 0.5
-      );
-      highlight.rotation.x = -Math.PI / 2;
-
-      this.highlightMeshes.push(highlight);
-      this.scene.add(highlight);
-    }
+    this.highlightSystem.highlightSquares(positions, (pos) => this.boardToWorld(pos), color);
   }
 
   highlightSelectedSquare(position: Position): void {
-    const halfBoard = this.boardSize / 2;
-    const geometry = new THREE.PlaneGeometry(0.95, 0.95);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      transparent: true,
-      opacity: 0.5,
-      side: THREE.DoubleSide,
-    });
-    const highlight = new THREE.Mesh(geometry, material);
-
-    highlight.position.set(
-      position.x - halfBoard + 0.5,
-      0.061,
-      position.y - halfBoard + 0.5
-    );
-    highlight.rotation.x = -Math.PI / 2;
-
-    this.highlightMeshes.push(highlight);
-    this.scene.add(highlight);
+    this.highlightSystem.highlightSelectedSquare(position, (pos) => this.boardToWorld(pos));
   }
 
   clearHighlights(): void {
-    for (const mesh of this.highlightMeshes) {
-      this.scene.remove(mesh);
-    }
-    this.highlightMeshes = [];
+    this.highlightSystem.clearHighlights();
+  }
+
+  // Delegate to LightingSystem
+  showCheckIndicator(position: Position): void {
+    this.lightingSystem.showCheckIndicator(position, (pos) => this.boardToWorld(pos));
+  }
+
+  hideCheckIndicator(): void {
+    this.lightingSystem.hideCheckIndicator();
   }
 
   private onWindowResize(container: HTMLElement): void {
@@ -441,36 +367,6 @@ export class Scene {
     this.animationManager = manager;
   }
 
-  showCheckIndicator(position: Position): void {
-    if (!this.checkSpotlight || !this.checkSpotlightTarget) return;
-
-    const worldPos = this.boardToWorld(position);
-
-    // Position spotlight above the king
-    this.checkSpotlight.position.set(worldPos.x, 8, worldPos.z);
-
-    // Point target at the king's position
-    this.checkSpotlightTarget.position.set(worldPos.x, 0.8, worldPos.z);
-
-    // Enable the light with red intensity
-    this.checkSpotlight.intensity = 5;
-
-    // Position and show the glowing red ring
-    if (this.checkGlowMesh) {
-      this.checkGlowMesh.position.set(worldPos.x, 0.07, worldPos.z);
-      (this.checkGlowMesh.material as THREE.MeshBasicMaterial).opacity = 0.8;
-    }
-  }
-
-  hideCheckIndicator(): void {
-    if (this.checkSpotlight) {
-      this.checkSpotlight.intensity = 0;
-    }
-    if (this.checkGlowMesh) {
-      (this.checkGlowMesh.material as THREE.MeshBasicMaterial).opacity = 0;
-    }
-  }
-
   render(): void {
     this.renderer.render(this.scene, this.camera);
   }
@@ -479,6 +375,13 @@ export class Scene {
     const animate = () => {
       requestAnimationFrame(animate);
       const deltaTime = this.clock.getDelta();
+      const elapsedTime = this.clock.getElapsedTime();
+
+      // Update sky dome shader time
+      const skyDome = this.scene.getObjectByName('skyDome') as THREE.Mesh;
+      if (skyDome && skyDome.material instanceof THREE.ShaderMaterial) {
+        skyDome.material.uniforms.time.value = elapsedTime;
+      }
 
       // Update animation manager if present
       if (this.animationManager) {
