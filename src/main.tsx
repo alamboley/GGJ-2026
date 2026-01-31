@@ -1,3 +1,4 @@
+import { createRoot, Root } from 'react-dom/client';
 import { Scene } from './rendering/Scene';
 import { Game } from './game/Game';
 import { PieceFactory } from './rendering/models/PieceFactory';
@@ -9,6 +10,7 @@ import { isKingInCheck } from './game/pieces/MoveValidator';
 import { UIManager } from './ui/UIManager';
 import { MinimapManager } from './ui/MinimapManager';
 import { SettingsManager } from './ui/SettingsManager';
+import { MainMenu } from './ui/MainMenu';
 import type { GameStatus, PlayerColor, PieceType, Move, GameConfig } from './types';
 
 // Store info about captures for feedback
@@ -30,10 +32,14 @@ let settingsManagerRef: SettingsManager | null = null;
 let pieceFactoryRef: PieceFactory | null = null;
 let containerRef: HTMLElement | null = null;
 
+// Menu references
+let menuRoot: Root | null = null;
+let menuContainer: HTMLElement | null = null;
+
 // Current game config
 let currentConfig: GameConfig = { boardSize: 12, pawnsPerPlayer: 8 };
 
-async function initGame(config: GameConfig): Promise<void> {
+async function initGame(config: GameConfig, existingScene?: Scene): Promise<void> {
   if (!containerRef) {
     console.error('Container not available');
     return;
@@ -44,8 +50,8 @@ async function initGame(config: GameConfig): Promise<void> {
   pendingCaptureId = null;
   pendingCaptureColor = null;
 
-  // Initialize components
-  const scene = new Scene(containerRef, config.boardSize);
+  // Use existing scene or create new one
+  const scene = existingScene ?? new Scene(containerRef, config.boardSize);
   const game = new Game(config);
   const ai = new AIPlayer('black');
   const inputHandler = new InputHandler(scene, game);
@@ -196,8 +202,10 @@ async function initGame(config: GameConfig): Promise<void> {
   // Update check indicator for initial state (king might start in check with random placement)
   updateCheckIndicator();
 
-  // Start render loop
-  scene.startRenderLoop();
+  // Start render loop only if we created a new scene
+  if (!existingScene) {
+    scene.startRenderLoop();
+  }
 
   console.log(`Chess game initialized! Board: ${config.boardSize}x${config.boardSize}, Pawns: ${config.pawnsPerPlayer}`);
 }
@@ -240,7 +248,43 @@ async function init(): Promise<void> {
   }
 
   containerRef = container;
-  await initGame(currentConfig);
+
+  // Create a background scene (visible behind the menu)
+  const backgroundScene = new Scene(container, currentConfig.boardSize);
+  backgroundScene.startRenderLoop();
+
+  // Show the main menu
+  menuContainer = document.createElement('div');
+  menuContainer.id = 'menu-root';
+  container.appendChild(menuContainer);
+
+  menuRoot = createRoot(menuContainer);
+  menuRoot.render(
+    <MainMenu
+      onStart={() => {
+        // Hide menu with fade effect
+        if (menuContainer) {
+          menuContainer.style.transition = 'opacity 0.3s ease-out';
+          menuContainer.style.opacity = '0';
+        }
+
+        // After fade, unmount menu and start game
+        setTimeout(async () => {
+          if (menuRoot) {
+            menuRoot.unmount();
+            menuRoot = null;
+          }
+          if (menuContainer) {
+            menuContainer.remove();
+            menuContainer = null;
+          }
+
+          // Initialize the game, reusing the background scene
+          await initGame(currentConfig, backgroundScene);
+        }, 300);
+      }}
+    />
+  );
 }
 
 function updateCheckIndicator(): void {
