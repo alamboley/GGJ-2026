@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Position, Move } from '../types';
+import type { Position, Move, PlayerColor } from '../types';
 import type { Scene } from './Scene';
 
 interface ActiveAnimation {
@@ -90,7 +90,7 @@ export class AnimationManager {
   }
 
   /**
-   * Animate a piece dying (falling backwards, fading out)
+   * Animate a piece dying (falling backwards, fading out) - legacy method
    */
   animateDeath(pieceId: string, duration: number = 600): Promise<void> {
     return new Promise((resolve) => {
@@ -139,6 +139,90 @@ export class AnimationManager {
           if (t >= 1) {
             // Remove the mesh from scene
             this.scene.removePieceMesh(pieceId);
+            resolve();
+            return true;
+          }
+          return false;
+        },
+      };
+
+      this.activeAnimations.push(animation);
+    });
+  }
+
+  /**
+   * Animate a captured piece moving to the edge of the board
+   */
+  animateToCapture(pieceId: string, pieceColor: PlayerColor, duration: number = 800): Promise<void> {
+    return new Promise((resolve) => {
+      const mesh = this.scene.getPieceMeshes().get(pieceId);
+      if (!mesh) {
+        resolve();
+        return;
+      }
+
+      const startPos = mesh.position.clone();
+      const startRotation = mesh.rotation.clone();
+      const startScale = mesh.scale.clone();
+
+      // Get target position on the edge
+      const targetPos = this.scene.getCapturedPiecePosition(pieceColor);
+
+      // Target scale (90% of current)
+      const targetScale = startScale.clone().multiplyScalar(0.9);
+
+      let elapsed = 0;
+
+      // First phase: dramatic fall (30% of animation)
+      // Second phase: float to captured area (70% of animation)
+      const fallDuration = duration * 0.3;
+      const floatDuration = duration * 0.7;
+
+      const animation: ActiveAnimation = {
+        update: (deltaTime: number) => {
+          elapsed += deltaTime * 1000;
+
+          if (elapsed < fallDuration) {
+            // Phase 1: Fall backwards dramatically
+            const t = elapsed / fallDuration;
+            const easedT = this.easeOutQuad(t);
+
+            mesh.rotation.x = startRotation.x - easedT * (Math.PI / 4);
+            mesh.position.y = startPos.y - easedT * 0.3;
+          } else {
+            // Phase 2: Float to captured area
+            const floatElapsed = elapsed - fallDuration;
+            const t = Math.min(1, floatElapsed / floatDuration);
+            const easedT = this.easeInOutCubic(t);
+
+            // Interpolate position with arc
+            const arcHeight = 2;
+            const arcT = Math.sin(easedT * Math.PI);
+
+            mesh.position.x = startPos.x + (targetPos.x - startPos.x) * easedT;
+            mesh.position.z = startPos.z + (targetPos.z - startPos.z) * easedT;
+            mesh.position.y = (startPos.y - 0.3) + (targetPos.y - startPos.y + 0.3) * easedT + arcHeight * arcT;
+
+            // Gradually stand back up and scale down
+            mesh.rotation.x = (startRotation.x - Math.PI / 4) * (1 - easedT);
+            mesh.rotation.y = startRotation.y + easedT * Math.PI; // Turn around
+
+            // Interpolate scale
+            mesh.scale.lerpVectors(startScale, targetScale, easedT);
+          }
+
+          if (elapsed >= duration) {
+            // Finalize position
+            mesh.position.copy(targetPos);
+            mesh.rotation.set(0, 0, 0);
+            mesh.scale.copy(targetScale);
+
+            // Remove from piece meshes tracking (no longer on board)
+            this.scene.getPieceMeshes().delete(pieceId);
+
+            // Add to captured pieces display
+            this.scene.addCapturedPiece(mesh, pieceColor);
+
             resolve();
             return true;
           }
@@ -309,7 +393,8 @@ export class AnimationManager {
    */
   async playCaptureSequence(
     move: Move,
-    capturedPieceId: string
+    capturedPieceId: string,
+    capturedPieceColor?: PlayerColor
   ): Promise<void> {
     // 1. Animate AI piece moving
     await this.animatePieceMove(move.pieceId, move.from, move.to, 600);
@@ -318,8 +403,12 @@ export class AnimationManager {
     this.createImpactParticles(move.to, 800);
     this.shakeCamera(200, 0.15);
 
-    // 3. Death animation for captured piece
-    await this.animateDeath(capturedPieceId, 600);
+    // 3. Animate captured piece to edge (if color provided) or use legacy death animation
+    if (capturedPieceColor) {
+      await this.animateToCapture(capturedPieceId, capturedPieceColor, 800);
+    } else {
+      await this.animateDeath(capturedPieceId, 600);
+    }
   }
 
   /**

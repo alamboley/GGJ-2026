@@ -16,12 +16,10 @@ let minimapCtx: CanvasRenderingContext2D | null = null;
 let gameRef: Game | null = null;
 let inputHandlerRef: InputHandler | null = null;
 
-// Animation references
-let animationManagerRef: AnimationManager | null = null;
-let sceneRef: Scene | null = null;
 
 // Track pending capture for animation
 let pendingCaptureId: string | null = null;
+let pendingCaptureColor: PlayerColor | null = null;
 
 // Minimap selection state
 let minimapSelectedPieceId: string | null = null;
@@ -56,10 +54,6 @@ async function init(): Promise<void> {
   const animationManager = new AnimationManager(scene);
   scene.setAnimationManager(animationManager);
 
-  // Store refs for callbacks
-  animationManagerRef = animationManager;
-  sceneRef = scene;
-
   // Load 3D models before setting up the game
   await pieceFactory.loadModels();
 
@@ -77,10 +71,11 @@ async function init(): Promise<void> {
     const piece = game.getBoard().getPiece(move.pieceId);
 
     // Animate all moves (both player and AI)
-    if (pendingCaptureId) {
+    if (pendingCaptureId && pendingCaptureColor) {
       // This is a capture move - play full cinematic sequence
-      await animationManager.playCaptureSequence(move, pendingCaptureId);
+      await animationManager.playCaptureSequence(move, pendingCaptureId, pendingCaptureColor);
       pendingCaptureId = null;
+      pendingCaptureColor = null;
     } else {
       // Simple move - just animate the movement
       await animationManager.playMoveSequence(move);
@@ -109,6 +104,7 @@ async function init(): Promise<void> {
   game.onPieceCaptured = (pieceId, pieceType, pieceColor) => {
     // Defer removal for animation (both player and AI captures)
     pendingCaptureId = pieceId;
+    pendingCaptureColor = pieceColor;
     lastCapturedPiece = { type: pieceType, color: pieceColor };
     updateMinimap();
   };

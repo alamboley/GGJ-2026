@@ -15,6 +15,10 @@ export class Scene {
   private animationManager: AnimationManager | null = null;
   private clock: THREE.Clock = new THREE.Clock();
 
+  // Captured pieces display
+  private capturedWhitePieces: THREE.Object3D[] = []; // White pieces captured by black
+  private capturedBlackPieces: THREE.Object3D[] = []; // Black pieces captured by white
+
   constructor(container: HTMLElement, boardSize: number = 8) {
     this.boardSize = boardSize;
 
@@ -270,6 +274,53 @@ export class Scene {
     }
   }
 
+  /**
+   * Get the world position for a captured piece on the edge
+   */
+  getCapturedPiecePosition(color: 'white' | 'black'): THREE.Vector3 {
+    const halfBoard = this.boardSize / 2;
+    const capturedList = color === 'white' ? this.capturedWhitePieces : this.capturedBlackPieces;
+    const index = capturedList.length;
+
+    // Place pieces in rows of 8 along the edge
+    const row = Math.floor(index / 8);
+    const col = index % 8;
+
+    // White captured pieces go on left edge (negative X), Black on right edge (positive X)
+    const xOffset = color === 'white' ? -halfBoard - 1.5 - row * 0.8 : halfBoard + 1.5 + row * 0.8;
+    const zPos = -halfBoard + col * 1.2 + 0.6;
+
+    return new THREE.Vector3(xOffset, 0.6, zPos);
+  }
+
+  /**
+   * Add a piece to the captured display area
+   */
+  addCapturedPiece(mesh: THREE.Object3D, color: 'white' | 'black'): void {
+    const capturedList = color === 'white' ? this.capturedWhitePieces : this.capturedBlackPieces;
+
+    // Scale down the captured piece slightly
+    mesh.scale.multiplyScalar(0.9);
+
+    // Reset rotation
+    mesh.rotation.set(0, 0, 0);
+
+    // Get position and update mesh
+    const pos = this.getCapturedPiecePosition(color);
+    mesh.position.copy(pos);
+
+    // Reset opacity
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const mat = child.material as THREE.MeshStandardMaterial;
+        mat.transparent = false;
+        mat.opacity = 1;
+      }
+    });
+
+    capturedList.push(mesh);
+  }
+
   highlightSquares(positions: Position[], color: number = 0x00ff00): void {
     this.clearHighlights();
 
@@ -350,6 +401,10 @@ export class Scene {
 
   getPieceMeshes(): Map<string, THREE.Object3D> {
     return this.pieceMeshes;
+  }
+
+  getBoardSize(): number {
+    return this.boardSize;
   }
 
   setAnimationManager(manager: AnimationManager): void {

@@ -54,7 +54,7 @@ export class PieceFactory {
     const clone = cachedModel.clone(true);
 
     // Create a fresh material for this piece
-    const materialColor = color === 'white' ? 0xffffff : 0x222222;
+    const materialColor = color === 'white' ? 0xffffff : 0x666666;
 
     clone.traverse((child) => {
       if (child instanceof THREE.Mesh) {
