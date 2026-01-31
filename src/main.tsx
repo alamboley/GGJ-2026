@@ -265,6 +265,9 @@ async function restartGame(config: GameConfig): Promise<void> {
   const gameUI = document.getElementById('game-ui');
   if (gameUI) gameUI.remove();
 
+  const moveLog = document.getElementById('move-log');
+  if (moveLog) moveLog.remove();
+
   const minimapContainer = document.getElementById('minimap-container');
   if (minimapContainer) minimapContainer.remove();
 
