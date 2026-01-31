@@ -4,6 +4,7 @@ import { PieceFactory } from './rendering/models/PieceFactory';
 import { AIPlayer } from './ai/AIPlayer';
 import { InputHandler } from './game/InputHandler';
 import { AnimationManager } from './rendering/AnimationManager';
+import { isKingInCheck } from './game/pieces/MoveValidator';
 import type { GameStatus, PlayerColor, PieceType, Move } from './types';
 
 // Store info about captures and moves for feedback
@@ -15,6 +16,7 @@ let minimapCanvas: HTMLCanvasElement | null = null;
 let minimapCtx: CanvasRenderingContext2D | null = null;
 let gameRef: Game | null = null;
 let inputHandlerRef: InputHandler | null = null;
+let sceneRef: Scene | null = null;
 
 
 // Track pending capture for animation
@@ -126,6 +128,8 @@ async function init(): Promise<void> {
     updateTurnIndicator(turn, game.getGameStatus());
     // Clear minimap selection on turn change
     clearMinimapSelection();
+    // Update check indicator
+    updateCheckIndicator();
 
     if (turn === 'black' && !game.isGameOver()) {
       inputHandler.setEnabled(false);
@@ -150,8 +154,12 @@ async function init(): Promise<void> {
   // Create and initialize minimap
   gameRef = game;
   inputHandlerRef = inputHandler;
+  sceneRef = scene;
   createMinimap(container);
   updateMinimap();
+
+  // Update check indicator for initial state (king might start in check with random placement)
+  updateCheckIndicator();
 
   // Sync 3D selection to minimap
   inputHandler.onSelectionChanged = (pieceId, validMoves) => {
@@ -202,6 +210,23 @@ function createUI(container: HTMLElement): void {
   uiContainer.appendChild(moveLog);
 
   container.appendChild(uiContainer);
+}
+
+function updateCheckIndicator(): void {
+  if (!gameRef || !sceneRef) return;
+
+  const currentTurn = gameRef.getCurrentTurn();
+  const board = gameRef.getBoard();
+
+  // Check if the current player's king is in check
+  if (isKingInCheck(currentTurn, board)) {
+    const king = board.findPiece('king', currentTurn);
+    if (king) {
+      sceneRef.showCheckIndicator(king.position);
+    }
+  } else {
+    sceneRef.hideCheckIndicator();
+  }
 }
 
 function updateTurnIndicator(turn: PlayerColor, status: GameStatus): void {
@@ -434,6 +459,18 @@ function updateMinimap(): void {
       const isLight = (x + y) % 2 === 0;
       ctx.fillStyle = isLight ? '#d4c4a8' : '#8b7355';
       ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+    }
+  }
+
+  // Draw check indicator (red square under king in check)
+  const currentTurn = gameRef.getCurrentTurn();
+  if (isKingInCheck(currentTurn, gameRef.getBoard())) {
+    const king = gameRef.getBoard().findPiece('king', currentTurn);
+    if (king) {
+      const x = king.position.x * cellSize;
+      const y = king.position.y * cellSize;
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+      ctx.fillRect(x, y, cellSize, cellSize);
     }
   }
 

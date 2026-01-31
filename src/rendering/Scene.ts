@@ -19,6 +19,11 @@ export class Scene {
   private capturedWhitePieces: THREE.Object3D[] = []; // White pieces captured by black
   private capturedBlackPieces: THREE.Object3D[] = []; // Black pieces captured by white
 
+  // Check indicator light
+  private checkSpotlight: THREE.SpotLight | null = null;
+  private checkSpotlightTarget: THREE.Object3D | null = null;
+  private checkGlowMesh: THREE.Mesh | null = null;
+
   constructor(container: HTMLElement, boardSize: number = 8) {
     this.boardSize = boardSize;
 
@@ -144,6 +149,31 @@ export class Scene {
     const frontLight = new THREE.DirectionalLight(0xffd4a0, 0.3);
     frontLight.position.set(0, 10, 15);
     this.scene.add(frontLight);
+
+    // Check indicator spotlight (red light from above, initially disabled)
+    this.checkSpotlightTarget = new THREE.Object3D();
+    this.scene.add(this.checkSpotlightTarget);
+
+    this.checkSpotlight = new THREE.SpotLight(0xff0000, 0, 15, Math.PI / 12, 0.4, 1.5);
+    this.checkSpotlight.position.set(0, 8, 0);
+    this.checkSpotlight.target = this.checkSpotlightTarget;
+    this.checkSpotlight.castShadow = true;
+    this.checkSpotlight.shadow.mapSize.width = 512;
+    this.checkSpotlight.shadow.mapSize.height = 512;
+    this.scene.add(this.checkSpotlight);
+
+    // Glowing red ring on the ground under the king in check
+    const ringGeometry = new THREE.RingGeometry(0.3, 0.5, 32);
+    const ringMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+    });
+    this.checkGlowMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+    this.checkGlowMesh.rotation.x = -Math.PI / 2;
+    this.checkGlowMesh.position.y = 0.07;
+    this.scene.add(this.checkGlowMesh);
   }
 
   private createTextSprite(text: string): THREE.Sprite {
@@ -409,6 +439,36 @@ export class Scene {
 
   setAnimationManager(manager: AnimationManager): void {
     this.animationManager = manager;
+  }
+
+  showCheckIndicator(position: Position): void {
+    if (!this.checkSpotlight || !this.checkSpotlightTarget) return;
+
+    const worldPos = this.boardToWorld(position);
+
+    // Position spotlight above the king
+    this.checkSpotlight.position.set(worldPos.x, 8, worldPos.z);
+
+    // Point target at the king's position
+    this.checkSpotlightTarget.position.set(worldPos.x, 0.8, worldPos.z);
+
+    // Enable the light with red intensity
+    this.checkSpotlight.intensity = 5;
+
+    // Position and show the glowing red ring
+    if (this.checkGlowMesh) {
+      this.checkGlowMesh.position.set(worldPos.x, 0.07, worldPos.z);
+      (this.checkGlowMesh.material as THREE.MeshBasicMaterial).opacity = 0.8;
+    }
+  }
+
+  hideCheckIndicator(): void {
+    if (this.checkSpotlight) {
+      this.checkSpotlight.intensity = 0;
+    }
+    if (this.checkGlowMesh) {
+      (this.checkGlowMesh.material as THREE.MeshBasicMaterial).opacity = 0;
+    }
   }
 
   render(): void {
