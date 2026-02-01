@@ -154,15 +154,19 @@ export class PieceFactory {
     const material = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
+        pixelRatio: { value: window.devicePixelRatio || 1.0 },
         baseColor: { value: new THREE.Color(0x1a0a2e) },   // Deep purple-black
         midColor: { value: new THREE.Color(0x4a1a6e) },    // Purple
         tipColor: { value: new THREE.Color(0x8b2a9e) },    // Bright purple tip
       },
       vertexShader: `
+        precision highp float;
+
         attribute float randomOffset;
         attribute float size;
 
         uniform float time;
+        uniform float pixelRatio;
 
         varying float vLife;
         varying float vRandom;
@@ -195,14 +199,16 @@ export class PieceFactory {
 
           vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
 
-          // Size attenuation and variation
+          // Size attenuation and variation, scaled by pixel ratio for mobile
           float finalSize = size * (1.0 - vLife * 0.5);
-          gl_PointSize = finalSize * (300.0 / -mvPosition.z);
+          gl_PointSize = finalSize * (300.0 / -mvPosition.z) * pixelRatio;
 
           gl_Position = projectionMatrix * mvPosition;
         }
       `,
       fragmentShader: `
+        precision mediump float;
+
         uniform vec3 baseColor;
         uniform vec3 midColor;
         uniform vec3 tipColor;

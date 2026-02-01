@@ -109,6 +109,8 @@ export class Scene {
         }
       `,
       fragmentShader: `
+        precision mediump float;
+
         uniform sampler2D hdrMap;
         uniform sampler2D depthMap;
         uniform float time;

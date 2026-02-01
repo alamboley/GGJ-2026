@@ -268,6 +268,10 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
 async function restartGame(config: GameConfig): Promise<void> {
   currentConfig = config;
 
+  // Dispose managers with cleanup methods
+  minimapManagerRef?.dispose?.();
+  uiManagerRef?.dispose?.();
+
   // Dispose old resources
   if (sceneRef) {
     sceneRef.dispose();
@@ -416,6 +420,10 @@ function showMainMenu(): void {
 }
 
 async function returnToMenu(): Promise<void> {
+  // Dispose managers with cleanup methods
+  minimapManagerRef?.dispose?.();
+  uiManagerRef?.dispose?.();
+
   // Dispose game scene (but not the background scene)
   if (sceneRef) {
     sceneRef.dispose();

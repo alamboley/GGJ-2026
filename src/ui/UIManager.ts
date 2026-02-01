@@ -1,4 +1,5 @@
 import type { GameStatus, PlayerColor, PieceType, Move } from '../types';
+import { isMobile, onViewportChange } from '../utils/mobileDetection';
 
 export interface MoveInfo {
   move: Move;
@@ -16,51 +17,54 @@ export class UIManager {
   private exitCallback: (() => void) | null = null;
   private masksEnabled: boolean = true;
 
+  // Mobile state
+  private isMobileView: boolean = false;
+  private unsubscribeViewport: (() => void) | null = null;
+
+  // UI element references for responsive updates
+  private uiContainer: HTMLDivElement | null = null;
+  private moveLog: HTMLDivElement | null = null;
+  private exitButton: HTMLButtonElement | null = null;
+  private maskToggleButton: HTMLButtonElement | null = null;
+  private settingsButton: HTMLButtonElement | null = null;
+
   constructor(container: HTMLElement, boardSize: number = 12) {
     this.container = container;
     this.boardSize = boardSize;
+    this.isMobileView = isMobile();
     this.createUI();
+
+    // Listen for viewport changes
+    this.unsubscribeViewport = onViewportChange((nowMobile) => {
+      this.isMobileView = nowMobile;
+      this.updateLayoutForViewport();
+    });
   }
 
   private createUI(): void {
-    const uiContainer = document.createElement('div');
-    uiContainer.id = 'game-ui';
-    uiContainer.style.cssText = `
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      color: white;
-      font-family: Arial, sans-serif;
-      font-size: 18px;
-      text-shadow: 1px 1px 2px black;
-      pointer-events: none;
-    `;
+    this.uiContainer = document.createElement('div');
+    this.uiContainer.id = 'game-ui';
+    this.updateUIContainerStyles();
 
     const turnIndicator = document.createElement('div');
     turnIndicator.id = 'turn-indicator';
-    uiContainer.appendChild(turnIndicator);
+    this.uiContainer.appendChild(turnIndicator);
 
     const statusIndicator = document.createElement('div');
     statusIndicator.id = 'status-indicator';
     statusIndicator.style.marginTop = '10px';
-    uiContainer.appendChild(statusIndicator);
+    this.uiContainer.appendChild(statusIndicator);
+
+    // Button container for layout control
+    const buttonContainer = document.createElement('div');
+    buttonContainer.id = 'button-container';
+    this.updateButtonContainerStyles(buttonContainer);
 
     const rewindButton = document.createElement('button');
     rewindButton.id = 'rewind-button';
     rewindButton.textContent = 'Rewind';
-    rewindButton.style.cssText = `
-      margin-top: 10px;
-      padding: 8px 16px;
-      font-size: 14px;
-      cursor: pointer;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 5px;
-      pointer-events: auto;
-      opacity: 0.5;
-      transition: opacity 0.2s, background 0.2s;
-    `;
+    this.applyButtonStyles(rewindButton, 'default');
+    rewindButton.style.opacity = '0.5';
     rewindButton.disabled = true;
     rewindButton.addEventListener('click', () => {
       if (this.rewindCallback && !rewindButton.disabled) {
@@ -76,89 +80,125 @@ export class UIManager {
       rewindButton.style.background = 'rgba(0, 0, 0, 0.7)';
     });
     this.rewindButton = rewindButton;
-    uiContainer.appendChild(rewindButton);
+    buttonContainer.appendChild(rewindButton);
 
     // Mask toggle button
-    const maskToggleButton = document.createElement('button');
-    maskToggleButton.id = 'mask-toggle-button';
-    maskToggleButton.textContent = 'Mask: ON';
-    maskToggleButton.style.cssText = `
-      margin-top: 10px;
-      margin-left: 10px;
-      padding: 8px 16px;
-      font-size: 14px;
-      cursor: pointer;
-      background: rgba(75, 0, 130, 0.7);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 5px;
-      pointer-events: auto;
-      transition: background 0.2s;
-    `;
-    maskToggleButton.addEventListener('click', () => {
+    this.maskToggleButton = document.createElement('button');
+    this.maskToggleButton.id = 'mask-toggle-button';
+    this.maskToggleButton.textContent = 'Mask: ON';
+    this.applyButtonStyles(this.maskToggleButton, 'mask');
+    this.maskToggleButton.addEventListener('click', () => {
       this.masksEnabled = !this.masksEnabled;
-      maskToggleButton.textContent = this.masksEnabled ? 'Mask: ON' : 'Mask: OFF';
-      maskToggleButton.style.background = this.masksEnabled
+      this.maskToggleButton!.textContent = this.masksEnabled ? 'Mask: ON' : 'Mask: OFF';
+      this.maskToggleButton!.style.background = this.masksEnabled
         ? 'rgba(75, 0, 130, 0.7)'
         : 'rgba(50, 50, 50, 0.7)';
       if (this.maskToggleCallback) {
         this.maskToggleCallback(this.masksEnabled);
       }
     });
-    maskToggleButton.addEventListener('mouseenter', () => {
-      maskToggleButton.style.background = this.masksEnabled
+    this.maskToggleButton.addEventListener('mouseenter', () => {
+      this.maskToggleButton!.style.background = this.masksEnabled
         ? 'rgba(100, 0, 180, 0.9)'
         : 'rgba(70, 70, 70, 0.9)';
     });
-    maskToggleButton.addEventListener('mouseleave', () => {
-      maskToggleButton.style.background = this.masksEnabled
+    this.maskToggleButton.addEventListener('mouseleave', () => {
+      this.maskToggleButton!.style.background = this.masksEnabled
         ? 'rgba(75, 0, 130, 0.7)'
         : 'rgba(50, 50, 50, 0.7)';
     });
-    uiContainer.appendChild(maskToggleButton);
+    buttonContainer.appendChild(this.maskToggleButton);
 
     // Settings button
-    const settingsButton = document.createElement('button');
-    settingsButton.id = 'settings-button';
-    settingsButton.innerHTML = '&#9881;';
-    settingsButton.style.cssText = `
-      margin-top: 10px;
-      margin-left: 10px;
-      padding: 8px 12px;
-      font-size: 16px;
-      cursor: pointer;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 5px;
-      pointer-events: auto;
-      transition: background 0.2s, transform 0.2s;
-    `;
-    settingsButton.addEventListener('click', () => {
+    this.settingsButton = document.createElement('button');
+    this.settingsButton.id = 'settings-button';
+    this.settingsButton.innerHTML = '&#9881;';
+    this.applyButtonStyles(this.settingsButton, 'settings');
+    this.settingsButton.addEventListener('click', () => {
       if (this.settingsCallback) {
         this.settingsCallback();
       }
     });
-    settingsButton.addEventListener('mouseenter', () => {
-      settingsButton.style.background = 'rgba(50, 50, 50, 0.9)';
-      settingsButton.style.transform = 'rotate(30deg)';
+    this.settingsButton.addEventListener('mouseenter', () => {
+      this.settingsButton!.style.background = 'rgba(50, 50, 50, 0.9)';
+      this.settingsButton!.style.transform = 'rotate(30deg)';
     });
-    settingsButton.addEventListener('mouseleave', () => {
-      settingsButton.style.background = 'rgba(0, 0, 0, 0.7)';
-      settingsButton.style.transform = 'rotate(0deg)';
+    this.settingsButton.addEventListener('mouseleave', () => {
+      this.settingsButton!.style.background = 'rgba(0, 0, 0, 0.7)';
+      this.settingsButton!.style.transform = 'rotate(0deg)';
     });
-    uiContainer.appendChild(settingsButton);
+    buttonContainer.appendChild(this.settingsButton);
+
+    this.uiContainer.appendChild(buttonContainer);
 
     // Exit button (bottom center of screen)
-    const exitButton = document.createElement('button');
-    exitButton.id = 'exit-button';
-    exitButton.textContent = 'Exit to Menu';
-    exitButton.style.cssText = `
+    this.exitButton = document.createElement('button');
+    this.exitButton.id = 'exit-button';
+    this.exitButton.textContent = 'Exit to Menu';
+    this.applyExitButtonStyles();
+    this.exitButton.addEventListener('click', () => {
+      if (this.exitCallback) {
+        this.exitCallback();
+      }
+    });
+    this.exitButton.addEventListener('mouseenter', () => {
+      this.exitButton!.style.background = 'rgba(150, 50, 50, 0.9)';
+    });
+    this.exitButton.addEventListener('mouseleave', () => {
+      this.exitButton!.style.background = 'rgba(120, 40, 40, 0.8)';
+    });
+    this.container.appendChild(this.exitButton);
+
+    this.moveLog = document.createElement('div');
+    this.moveLog.id = 'move-log';
+    this.updateMoveLogStyles();
+    this.container.appendChild(this.moveLog);
+
+    this.container.appendChild(this.uiContainer);
+  }
+
+  private applyButtonStyles(button: HTMLButtonElement, type: 'default' | 'mask' | 'settings'): void {
+    const baseStyles = `
+      min-width: 44px;
+      min-height: 44px;
+      padding: 12px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 5px;
+      pointer-events: auto;
+      transition: opacity 0.2s, background 0.2s, transform 0.2s;
+      font-family: Arial, sans-serif;
+    `;
+
+    if (type === 'mask') {
+      button.style.cssText = baseStyles + `
+        background: rgba(75, 0, 130, 0.7);
+      `;
+    } else if (type === 'settings') {
+      button.style.cssText = baseStyles + `
+        background: rgba(0, 0, 0, 0.7);
+        padding: 12px 16px;
+        font-size: 16px;
+      `;
+    } else {
+      button.style.cssText = baseStyles + `
+        background: rgba(0, 0, 0, 0.7);
+      `;
+    }
+  }
+
+  private applyExitButtonStyles(): void {
+    if (!this.exitButton) return;
+    this.exitButton.style.cssText = `
       position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 10px 25px;
+      min-width: 44px;
+      min-height: 44px;
+      padding: 12px 25px;
       font-size: 14px;
       cursor: pointer;
       background: rgba(120, 40, 40, 0.8);
@@ -168,38 +208,77 @@ export class UIManager {
       pointer-events: auto;
       transition: background 0.2s, transform 0.1s;
       z-index: 100;
+      font-family: Arial, sans-serif;
     `;
-    exitButton.addEventListener('click', () => {
-      if (this.exitCallback) {
-        this.exitCallback();
-      }
-    });
-    exitButton.addEventListener('mouseenter', () => {
-      exitButton.style.background = 'rgba(150, 50, 50, 0.9)';
-    });
-    exitButton.addEventListener('mouseleave', () => {
-      exitButton.style.background = 'rgba(120, 40, 40, 0.8)';
-    });
-    this.container.appendChild(exitButton);
+  }
 
-    const moveLog = document.createElement('div');
-    moveLog.id = 'move-log';
-    moveLog.style.cssText = `
+  private updateUIContainerStyles(): void {
+    if (!this.uiContainer) return;
+    this.uiContainer.style.cssText = `
       position: absolute;
       top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 20px;
-      background: rgba(0, 0, 0, 0.6);
-      border-radius: 8px;
-      font-size: 18px;
-      min-width: 350px;
-      min-height: 120px;
+      left: 20px;
       color: white;
+      font-family: Arial, sans-serif;
+      font-size: ${this.isMobileView ? '14px' : '18px'};
+      text-shadow: 1px 1px 2px black;
+      pointer-events: none;
     `;
-    this.container.appendChild(moveLog);
+  }
 
-    this.container.appendChild(uiContainer);
+  private updateButtonContainerStyles(container: HTMLDivElement): void {
+    container.style.cssText = `
+      display: flex;
+      flex-direction: ${this.isMobileView ? 'column' : 'row'};
+      gap: 10px;
+      margin-top: 10px;
+    `;
+  }
+
+  private updateMoveLogStyles(): void {
+    if (!this.moveLog) return;
+    if (this.isMobileView) {
+      this.moveLog.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        left: 10px;
+        right: 10px;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.6);
+        border-radius: 8px;
+        font-size: 14px;
+        color: white;
+        font-family: Arial, sans-serif;
+        max-height: 80px;
+        overflow-y: auto;
+      `;
+    } else {
+      this.moveLog.style.cssText = `
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.6);
+        border-radius: 8px;
+        font-size: 18px;
+        min-width: 350px;
+        min-height: 120px;
+        color: white;
+        font-family: Arial, sans-serif;
+      `;
+    }
+  }
+
+  private updateLayoutForViewport(): void {
+    this.updateUIContainerStyles();
+    this.updateMoveLogStyles();
+
+    // Update button container
+    const buttonContainer = document.getElementById('button-container');
+    if (buttonContainer) {
+      this.updateButtonContainerStyles(buttonContainer as HTMLDivElement);
+    }
   }
 
   updateTurnIndicator(turn: PlayerColor, status: GameStatus): void {
@@ -221,8 +300,7 @@ export class UIManager {
   }
 
   showPlayerMove(playerMove: MoveInfo): void {
-    const moveLog = document.getElementById('move-log');
-    if (!moveLog) return;
+    if (!this.moveLog) return;
 
     const from = this.formatPosition(playerMove.move.from.x, playerMove.move.from.y);
     const to = this.formatPosition(playerMove.move.to.x, playerMove.move.to.y);
@@ -235,21 +313,22 @@ export class UIManager {
       logText += `<br><span style="color: #4CAF50;">Captured ${capturedName}!</span>`;
     }
 
-    moveLog.innerHTML = logText;
+    this.moveLog.innerHTML = logText;
 
     // Brief highlight animation
-    moveLog.style.background = 'rgba(50, 100, 50, 0.8)';
+    this.moveLog.style.background = 'rgba(50, 100, 50, 0.8)';
     setTimeout(() => {
-      moveLog.style.background = 'rgba(0, 0, 0, 0.6)';
+      if (this.moveLog) {
+        this.moveLog.style.background = 'rgba(0, 0, 0, 0.6)';
+      }
     }, 500);
   }
 
   showAIMove(aiMove: MoveInfo): void {
-    const moveLog = document.getElementById('move-log');
-    if (!moveLog) return;
+    if (!this.moveLog) return;
 
     // Get current content (player move) and add separator
-    let logText = moveLog.innerHTML;
+    let logText = this.moveLog.innerHTML;
     if (logText) {
       logText += '<hr style="border-color: rgba(255,255,255,0.3); margin: 8px 0;">';
     }
@@ -266,12 +345,14 @@ export class UIManager {
       logText += `<br><span style="color: #ff6b6b;">Captured your ${capturedName}!</span>`;
     }
 
-    moveLog.innerHTML = logText;
+    this.moveLog.innerHTML = logText;
 
     // Brief highlight animation
-    moveLog.style.background = 'rgba(100, 50, 50, 0.8)';
+    this.moveLog.style.background = 'rgba(100, 50, 50, 0.8)';
     setTimeout(() => {
-      moveLog.style.background = 'rgba(0, 0, 0, 0.6)';
+      if (this.moveLog) {
+        this.moveLog.style.background = 'rgba(0, 0, 0, 0.6)';
+      }
     }, 500);
   }
 
@@ -300,7 +381,9 @@ export class UIManager {
       <div>${message}</div>
       <button onclick="location.reload()" style="
         margin-top: 20px;
-        padding: 10px 30px;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 12px 30px;
         font-size: 18px;
         cursor: pointer;
         background: #4CAF50;
@@ -383,9 +466,18 @@ export class UIManager {
    * Clear the move log (used when rewinding)
    */
   clearMoveLog(): void {
-    const moveLog = document.getElementById('move-log');
-    if (moveLog) {
-      moveLog.innerHTML = '';
+    if (this.moveLog) {
+      this.moveLog.innerHTML = '';
+    }
+  }
+
+  /**
+   * Cleanup event listeners
+   */
+  dispose(): void {
+    if (this.unsubscribeViewport) {
+      this.unsubscribeViewport();
+      this.unsubscribeViewport = null;
     }
   }
 }
