@@ -170,6 +170,10 @@ export class UIManager {
       pointer-events: auto;
       transition: opacity 0.2s, background 0.2s, transform 0.2s;
       font-family: Arial, sans-serif;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     `;
 
     if (type === 'mask') {
@@ -212,6 +216,10 @@ export class UIManager {
       transition: background 0.2s, transform 0.1s;
       z-index: 100;
       font-family: Arial, sans-serif;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     `;
   }
 
@@ -393,6 +401,10 @@ export class UIManager {
         color: white;
         border: none;
         border-radius: 5px;
+        touch-action: manipulation;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
       ">Play Again</button>
     `;
 

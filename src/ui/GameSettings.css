@@ -73,17 +73,22 @@
   border-radius: 4px;
   outline: none;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .setting-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   background: #4fc3f7;
   border-radius: 50%;
   cursor: pointer;
   transition: transform 0.1s;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .setting-slider::-webkit-slider-thumb:hover {
@@ -91,12 +96,13 @@
 }
 
 .setting-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   background: #4fc3f7;
   border-radius: 50%;
   cursor: pointer;
   border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .slider-labels {
@@ -168,6 +174,9 @@
   border-radius: 8px;
   transition: background 0.2s, transform 0.1s;
   min-height: 50px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .back-button:hover {
@@ -190,6 +199,9 @@
   border-radius: 8px;
   transition: background 0.2s, transform 0.1s;
   min-height: 50px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .launch-button:hover:not(:disabled) {

@@ -194,6 +194,10 @@ export class MinimapManager {
       display: ${this.isMobileView ? 'block' : 'none'};
       z-index: 100;
       font-family: Arial, sans-serif;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     `;
     this.toggleButton.addEventListener('click', () => this.toggleExpanded());
     container.appendChild(this.toggleButton);
@@ -235,6 +239,10 @@ export class MinimapManager {
       display: flex;
       justify-content: center;
       align-items: center;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     `;
     closeButton.addEventListener('click', () => this.toggleExpanded());
     this.overlayContainer.appendChild(closeButton);

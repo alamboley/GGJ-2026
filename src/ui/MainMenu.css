@@ -92,6 +92,9 @@
   border-radius: 8px;
   transition: background 0.2s, transform 0.1s;
   min-height: 54px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .start-button:hover {

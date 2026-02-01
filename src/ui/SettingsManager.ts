@@ -60,6 +60,12 @@ export class SettingsManager {
       font-size: 20px;
       cursor: pointer;
       padding: 0 5px;
+      min-width: 44px;
+      min-height: 44px;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     `;
     closeButton.addEventListener('click', () => this.hidePanel());
     header.appendChild(closeButton);
@@ -123,6 +129,11 @@ export class SettingsManager {
       border: none;
       border-radius: 5px;
       transition: background 0.2s;
+      min-height: 44px;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     `;
     startButton.addEventListener('click', () => this.startNewGame());
     startButton.addEventListener('mouseenter', () => {
@@ -177,6 +188,9 @@ export class SettingsManager {
       width: 100%;
       cursor: pointer;
       accent-color: #4CAF50;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
     `;
     slider.addEventListener('input', () => {
       const value = parseInt(slider.value);
