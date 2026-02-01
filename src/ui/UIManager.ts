@@ -191,15 +191,18 @@ export class UIManager {
 
   private applyExitButtonStyles(): void {
     if (!this.exitButton) return;
+    const bottomOffset = this.isMobileView ? '15px' : '20px';
+    const padding = this.isMobileView ? '10px 20px' : '12px 25px';
+    const fontSize = this.isMobileView ? '13px' : '14px';
     this.exitButton.style.cssText = `
       position: fixed;
-      bottom: 20px;
+      bottom: ${bottomOffset};
       left: 50%;
       transform: translateX(-50%);
       min-width: 44px;
       min-height: 44px;
-      padding: 12px 25px;
-      font-size: 14px;
+      padding: ${padding};
+      font-size: ${fontSize};
       cursor: pointer;
       background: rgba(120, 40, 40, 0.8);
       color: white;
@@ -240,17 +243,16 @@ export class UIManager {
     if (this.isMobileView) {
       this.moveLog.style.cssText = `
         position: fixed;
-        bottom: 80px;
+        bottom: 60px;
         left: 10px;
         right: 10px;
-        padding: 12px;
+        padding: 10px;
         background: rgba(0, 0, 0, 0.6);
         border-radius: 8px;
-        font-size: 14px;
+        font-size: 12px;
         color: white;
         font-family: Arial, sans-serif;
-        max-height: 80px;
-        overflow-y: auto;
+        z-index: 50;
       `;
     } else {
       this.moveLog.style.cssText = `
@@ -273,6 +275,7 @@ export class UIManager {
   private updateLayoutForViewport(): void {
     this.updateUIContainerStyles();
     this.updateMoveLogStyles();
+    this.applyExitButtonStyles();
 
     // Update button container
     const buttonContainer = document.getElementById('button-container');

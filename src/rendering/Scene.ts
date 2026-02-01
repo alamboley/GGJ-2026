@@ -34,7 +34,8 @@ export class Scene {
 
     // Create scene
     this.scene = new THREE.Scene();
-    // No background color - sky dome will provide the background
+    // Fallback background color matching sky dome (visible on iOS before sky loads)
+    this.scene.background = new THREE.Color(0x3a4560);
     this.scene.fog = new THREE.FogExp2(0x5a6080, 0.02); // Atmospheric haze matching HDR
 
     // Create camera

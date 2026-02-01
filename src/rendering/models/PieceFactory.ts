@@ -252,7 +252,7 @@ export class PieceFactory {
     group.add(particles);
 
     // Add a dark core sphere to fully obscure the piece
-    const coreGeometry = new THREE.SphereGeometry(0.55, 16, 16);
+    const coreGeometry = new THREE.SphereGeometry(0.42, 16, 16);
     const coreMaterial = new THREE.MeshBasicMaterial({
       color: 0x0a0510,
       transparent: true,

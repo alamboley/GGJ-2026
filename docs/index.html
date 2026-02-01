@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>GGJ-2026 - Chess Battle Royale</title>
     <style>
       * {
@@ -10,18 +10,44 @@
         padding: 0;
         box-sizing: border-box;
       }
-      body {
+      html, body {
         overflow: hidden;
+        background: #3a4560;
+        touch-action: none;
+        position: fixed;
+        width: 100%;
+        height: 100%;
       }
       #app {
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
+        height: 100dvh;
+        background: #3a4560;
+        overflow: hidden;
+        position: fixed;
+        top: 0;
+        left: 0;
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-B4RsAJEJ.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DsNODEHn.css">
+    <script type="module" crossorigin src="./assets/index-CRnoyBFW.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-GD-QcXDh.css">
   </head>
   <body>
     <div id="app"></div>
+    <script>
+      // Prevent scroll on mobile
+      document.addEventListener('touchmove', function(e) {
+        if (e.target.closest('canvas')) return; // Allow Three.js canvas gestures
+        if (e.target.closest('.rules-section')) return; // Allow rules scroll
+        e.preventDefault();
+      }, { passive: false });
+
+      // Prevent overscroll/bounce
+      document.body.addEventListener('touchmove', function(e) {
+        if (e.target === document.body) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+    </script>
   </body>
 </html>
