@@ -1,5 +1,5 @@
 import { createRoot, Root } from 'react-dom/client';
-import { Scene } from './rendering/Scene';
+import { Scene, PreloadedTextures } from './rendering/Scene';
 import { Game } from './game/Game';
 import { PieceFactory } from './rendering/models/PieceFactory';
 import { AIPlayer } from './ai/AIPlayer';
@@ -12,6 +12,7 @@ import { MinimapManager } from './ui/MinimapManager';
 import { SettingsManager } from './ui/SettingsManager';
 import { MainMenu } from './ui/MainMenu';
 import { GameSettings } from './ui/GameSettings';
+import { AssetPreloader, PreloadedAssets } from './utils/AssetPreloader';
 import type { GameStatus, PlayerColor, PieceType, Move, GameConfig } from './types';
 
 // Store info about captures for feedback
@@ -32,6 +33,7 @@ let settingsManagerRef: SettingsManager | null = null;
 // Shared resources
 let pieceFactoryRef: PieceFactory | null = null;
 let containerRef: HTMLElement | null = null;
+let preloadedAssetsRef: PreloadedAssets | null = null;
 
 // Menu references
 let menuRoot: Root | null = null;
@@ -58,8 +60,13 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
   pendingCaptureId = null;
   pendingCaptureColor = null;
 
-  // Use existing scene or create new one
-  const scene = existingScene ?? new Scene(containerRef, config.boardSize);
+  // Create preloaded textures object if assets are preloaded
+  const preloadedTextures: PreloadedTextures | undefined = preloadedAssetsRef
+    ? { hdr: preloadedAssetsRef.textures.hdr, depth: preloadedAssetsRef.textures.depth }
+    : undefined;
+
+  // Use existing scene or create new one (with preloaded textures)
+  const scene = existingScene ?? new Scene(containerRef, config.boardSize, preloadedTextures);
   const game = new Game(config);
   const ai = new AIPlayer('black');
   const inputHandler = new InputHandler(scene, game);
@@ -68,10 +75,12 @@ async function initGame(config: GameConfig, existingScene?: Scene): Promise<void
   const animationManager = new AnimationManager(scene);
   scene.setAnimationManager(animationManager);
 
-  // Ensure models are loaded
+  // Use preloaded models or load them
   if (!pieceFactoryRef) {
-    pieceFactoryRef = new PieceFactory();
-    await pieceFactoryRef.loadModels();
+    pieceFactoryRef = new PieceFactory(preloadedAssetsRef?.models);
+    if (!preloadedAssetsRef) {
+      await pieceFactoryRef.loadModels();
+    }
   }
 
   // Set piece factory on scene for masking
@@ -312,8 +321,13 @@ function updateBackgroundScene(boardSize: number): void {
     backgroundSceneRef.dispose();
   }
 
-  // Create new scene with updated board size
-  backgroundSceneRef = new Scene(containerRef, boardSize);
+  // Create preloaded textures object if assets are preloaded
+  const preloadedTextures: PreloadedTextures | undefined = preloadedAssetsRef
+    ? { hdr: preloadedAssetsRef.textures.hdr, depth: preloadedAssetsRef.textures.depth }
+    : undefined;
+
+  // Create new scene with updated board size (using preloaded textures)
+  backgroundSceneRef = new Scene(containerRef, boardSize, preloadedTextures);
   backgroundSceneRef.startRenderLoop();
 }
 
@@ -391,32 +405,73 @@ function showMainMenu(): void {
   containerRef.appendChild(menuContainer);
 
   menuRoot = createRoot(menuContainer);
-  menuRoot.render(
-    <MainMenu
-      onStart={() => {
-        // Hide menu with fade effect
-        if (menuContainer) {
-          menuContainer.style.transition = 'opacity 0.3s ease-out';
-          menuContainer.style.opacity = '0';
-        }
 
-        // After fade, unmount menu and show settings
-        setTimeout(() => {
-          if (menuRoot) {
-            menuRoot.unmount();
-            menuRoot = null;
-          }
+  // Track loading state
+  let isLoading = !preloadedAssetsRef;
+  let loadProgress = preloadedAssetsRef ? 100 : 0;
+
+  const renderMenu = () => {
+    menuRoot?.render(
+      <MainMenu
+        isLoading={isLoading}
+        loadProgress={loadProgress}
+        logoSrc={preloadedAssetsRef?.textures.logo.src}
+        onStart={() => {
+          // Hide menu with fade effect
           if (menuContainer) {
-            menuContainer.remove();
-            menuContainer = null;
+            menuContainer.style.transition = 'opacity 0.3s ease-out';
+            menuContainer.style.opacity = '0';
           }
 
-          // Show game settings screen
-          showSettings();
-        }, 300);
-      }}
-    />
-  );
+          // After fade, unmount menu and show settings
+          setTimeout(() => {
+            if (menuRoot) {
+              menuRoot.unmount();
+              menuRoot = null;
+            }
+            if (menuContainer) {
+              menuContainer.remove();
+              menuContainer = null;
+            }
+
+            // Show game settings screen
+            showSettings();
+          }, 300);
+        }}
+      />
+    );
+  };
+
+  // Initial render
+  renderMenu();
+
+  // Start preloading if not already loaded
+  if (!preloadedAssetsRef) {
+    const preloader = new AssetPreloader();
+    preloader.preloadAll((loaded, total) => {
+      loadProgress = (loaded / total) * 100;
+      renderMenu();
+    }).then((assets) => {
+      preloadedAssetsRef = assets;
+      isLoading = false;
+      loadProgress = 100;
+
+      // Create background scene now that textures are loaded
+      createBackgroundScene();
+
+      renderMenu();
+    }).catch((err) => {
+      console.error('Failed to preload assets:', err);
+      // Still allow starting even if preload fails
+      isLoading = false;
+      loadProgress = 100;
+      createBackgroundScene();
+      renderMenu();
+    });
+  } else {
+    // Assets already loaded, ensure background scene exists
+    createBackgroundScene();
+  }
 }
 
 async function returnToMenu(): Promise<void> {
@@ -459,7 +514,13 @@ async function returnToMenu(): Promise<void> {
 
   // Create a fresh background scene
   if (!containerRef) return;
-  backgroundSceneRef = new Scene(containerRef, currentConfig.boardSize);
+
+  // Create preloaded textures object if assets are preloaded
+  const preloadedTextures: PreloadedTextures | undefined = preloadedAssetsRef
+    ? { hdr: preloadedAssetsRef.textures.hdr, depth: preloadedAssetsRef.textures.depth }
+    : undefined;
+
+  backgroundSceneRef = new Scene(containerRef, currentConfig.boardSize, preloadedTextures);
   backgroundSceneRef.startRenderLoop();
 
   // Show the main menu
@@ -476,12 +537,21 @@ async function init(): Promise<void> {
 
   containerRef = container;
 
-  // Create a background scene (visible behind the menu)
-  backgroundSceneRef = new Scene(container, currentConfig.boardSize);
-  backgroundSceneRef.startRenderLoop();
-
-  // Show the main menu
+  // Show the main menu immediately (with loading state)
+  // Background scene will be created after assets are preloaded
   showMainMenu();
+}
+
+function createBackgroundScene(): void {
+  if (!containerRef || backgroundSceneRef) return;
+
+  // Create preloaded textures object if assets are preloaded
+  const preloadedTextures: PreloadedTextures | undefined = preloadedAssetsRef
+    ? { hdr: preloadedAssetsRef.textures.hdr, depth: preloadedAssetsRef.textures.depth }
+    : undefined;
+
+  backgroundSceneRef = new Scene(containerRef, currentConfig.boardSize, preloadedTextures);
+  backgroundSceneRef.startRenderLoop();
 }
 
 function updateCheckIndicator(): void {

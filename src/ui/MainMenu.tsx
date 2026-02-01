@@ -2,13 +2,16 @@ import './MainMenu.css';
 
 interface MainMenuProps {
   onStart: () => void;
+  isLoading: boolean;
+  loadProgress: number; // 0-100
+  logoSrc?: string;
 }
 
-export function MainMenu({ onStart }: MainMenuProps) {
+export function MainMenu({ onStart, isLoading, loadProgress, logoSrc }: MainMenuProps) {
   return (
     <div className="menu-overlay">
       <div className="menu-content">
-        <img src="./assets/logo.png" alt="Battlefield Chess" className="menu-logo" />
+        <img src={logoSrc || './assets/logo.png'} alt="Battlefield Chess" className="menu-logo" />
         <h1 className="menu-title">Battlefield Chess</h1>
         <p className="menu-subtitle">A Chess Battle Royale</p>
 
@@ -24,9 +27,18 @@ export function MainMenu({ onStart }: MainMenuProps) {
           </ul>
         </div>
 
-        <button className="start-button" onClick={onStart}>
-          Start Game
-        </button>
+        {isLoading ? (
+          <div className="loading-container">
+            <div className="loading-bar">
+              <div className="loading-fill" style={{ width: `${loadProgress}%` }} />
+            </div>
+            <span className="loading-text">Loading assets... {Math.round(loadProgress)}%</span>
+          </div>
+        ) : (
+          <button className="start-button" onClick={onStart}>
+            Start Game
+          </button>
+        )}
       </div>
     </div>
   );

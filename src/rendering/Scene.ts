@@ -6,6 +6,11 @@ import type { PieceFactory } from './models/PieceFactory';
 import { LightingSystem } from './LightingSystem';
 import { HighlightSystem } from './HighlightSystem';
 
+export interface PreloadedTextures {
+  hdr: THREE.Texture;
+  depth: THREE.Texture;
+}
+
 export class Scene {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
@@ -29,8 +34,12 @@ export class Scene {
   private capturedWhitePieces: THREE.Object3D[] = []; // White pieces captured by black
   private capturedBlackPieces: THREE.Object3D[] = []; // Black pieces captured by white
 
-  constructor(container: HTMLElement, boardSize: number = 8) {
+  // Preloaded textures
+  private preloadedTextures: PreloadedTextures | null = null;
+
+  constructor(container: HTMLElement, boardSize: number = 8, preloadedTextures?: PreloadedTextures) {
     this.boardSize = boardSize;
+    this.preloadedTextures = preloadedTextures || null;
 
     // Create scene
     this.scene = new THREE.Scene();
@@ -83,14 +92,20 @@ export class Scene {
   }
 
   private createSkyDome(): void {
-    const textureLoader = new THREE.TextureLoader();
+    let hdrTexture: THREE.Texture;
+    let depthTexture: THREE.Texture;
 
-    // Load HDR and depth textures
-    const hdrTexture = textureLoader.load('./assets/hdr_high.png');
-    const depthTexture = textureLoader.load('./assets/depth.png');
-
-    // Configure textures for spherical mapping
-    hdrTexture.colorSpace = THREE.SRGBColorSpace;
+    if (this.preloadedTextures) {
+      // Use preloaded textures
+      hdrTexture = this.preloadedTextures.hdr;
+      depthTexture = this.preloadedTextures.depth;
+    } else {
+      // Fallback: load textures on demand
+      const textureLoader = new THREE.TextureLoader();
+      hdrTexture = textureLoader.load('./assets/hdr_high.png');
+      depthTexture = textureLoader.load('./assets/depth.png');
+      hdrTexture.colorSpace = THREE.SRGBColorSpace;
+    }
 
     const skyGeometry = new THREE.SphereGeometry(80, 64, 64);
     const skyMaterial = new THREE.ShaderMaterial({

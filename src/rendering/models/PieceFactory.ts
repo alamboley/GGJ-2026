@@ -13,7 +13,7 @@ export class PieceFactory {
   private modelCache: ModelCache = {};
   private modelsLoaded: boolean = false;
 
-  constructor() {
+  constructor(preloadedModels?: Map<PieceType, THREE.Group>) {
     this.whiteMaterial = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       roughness: 0.5,
@@ -26,6 +26,14 @@ export class PieceFactory {
     });
 
     this.loader = new GLTFLoader();
+
+    // Use preloaded models if provided
+    if (preloadedModels) {
+      preloadedModels.forEach((model, type) => {
+        this.modelCache[type] = model;
+      });
+      this.modelsLoaded = true;
+    }
   }
 
   async loadModels(): Promise<void> {
