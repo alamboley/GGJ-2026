@@ -35,6 +35,7 @@
   width: 200px;
   height: auto;
   margin-bottom: 15px;
+  align-self: center;
 }
 
 .menu-title {
