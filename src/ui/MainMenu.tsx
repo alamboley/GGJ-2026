@@ -11,8 +11,8 @@ export function MainMenu({ onStart, isLoading, loadProgress, logoSrc }: MainMenu
   return (
     <div className="menu-overlay">
       <div className="menu-content">
-        <img src={logoSrc || './assets/logo.png'} alt="Battlefield Chess" className="menu-logo" />
-        <h1 className="menu-title">Battlefield Chess</h1>
+        <img src={logoSrc || './assets/logo.png'} alt="Chess Battlefield" className="menu-logo" />
+        <h1 className="menu-title">Chess Battlefield</h1>
         <p className="menu-subtitle">A Chess Battle Royale</p>
 
         <div className="rules-section">
